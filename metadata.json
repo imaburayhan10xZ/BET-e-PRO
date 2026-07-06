@@ -1,0 +1,6 @@
+{
+  "name": "BETEPRO",
+  "description": "BETEPRO is a premium full-stack sports gaming and casino simulation platform featuring live sports predictions, immersive demo games (Crash, Lucky Spin, Dice, Aviator), instant virtual wallet transactions, and a robust Admin Dashboard.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
