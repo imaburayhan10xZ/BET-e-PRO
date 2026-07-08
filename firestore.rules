@@ -6,7 +6,43 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Allow read/write access to the app_state collection for the server
+    // Allow read/write access to individual collections
+    match /users/{documentId} {
+      allow read, write: if true;
+    }
+    match /matches/{documentId} {
+      allow read, write: if true;
+    }
+    match /predictions/{documentId} {
+      allow read, write: if true;
+    }
+    match /transactions/{documentId} {
+      allow read, write: if true;
+    }
+    match /promotions/{documentId} {
+      allow read, write: if true;
+    }
+    match /notifications/{documentId} {
+      allow read, write: if true;
+    }
+    match /leaderboard/{documentId} {
+      allow read, write: if true;
+    }
+    match /supportTickets/{documentId} {
+      allow read, write: if true;
+    }
+    match /news/{documentId} {
+      allow read, write: if true;
+    }
+    match /supportChannels/{documentId} {
+      allow read, write: if true;
+    }
+    match /banners/{documentId} {
+      allow read, write: if true;
+    }
+    match /settings/{documentId} {
+      allow read, write: if true;
+    }
     match /app_state/{documentId} {
       allow read, write: if true;
     }

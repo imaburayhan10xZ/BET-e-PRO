@@ -1,21 +1,245 @@
 {
   "entities": {
-    "AppState": {
-      "title": "AppState",
-      "description": "Stores individual pieces of the application state",
+    "User": {
+      "title": "User",
+      "description": "User profile with balance, VIP levels, and block status",
       "type": "object",
       "properties": {
-        "value": {
-          "type": "array",
-          "description": "The data content for the specific collection"
-        }
+        "id": { "type": "string" },
+        "username": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "role": { "type": "string" },
+        "balance": { "type": "number" },
+        "referralCode": { "type": "string" },
+        "referredBy": { "type": "string" },
+        "vipLevel": { "type": "number" },
+        "vipPoints": { "type": "number" },
+        "isBlocked": { "type": "boolean" },
+        "fullName": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "passwordHash": { "type": "string" },
+        "salt": { "type": "string" }
+      }
+    },
+    "Match": {
+      "title": "Match",
+      "description": "Active, upcoming, or completed sports fixtures",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "sport": { "type": "string" },
+        "league": { "type": "string" },
+        "time": { "type": "string" },
+        "homeTeam": { "type": "object" },
+        "awayTeam": { "type": "object" },
+        "homeScore": { "type": "number" },
+        "awayScore": { "type": "number" },
+        "status": { "type": "string" },
+        "odds": { "type": "object" },
+        "stats": { "type": "object" }
+      }
+    },
+    "Prediction": {
+      "title": "Prediction",
+      "description": "User wagers placed on matches",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "username": { "type": "string" },
+        "matchId": { "type": "string" },
+        "matchDetails": { "type": "object" },
+        "selection": { "type": "string" },
+        "odds": { "type": "number" },
+        "betAmount": { "type": "number" },
+        "potentialPayout": { "type": "number" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      }
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Ledger entry of user deposits, withdrawals, bets, and payouts",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "username": { "type": "string" },
+        "type": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "transactionId": { "type": "string" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string" }
+      }
+    },
+    "Promotion": {
+      "title": "Promotion",
+      "description": "Promotional bonus offerings",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "image": { "type": "string" },
+        "category": { "type": "string" },
+        "bonusPercentage": { "type": "number" },
+        "minDeposit": { "type": "number" },
+        "code": { "type": "string" },
+        "active": { "type": "boolean" }
+      }
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "In-app system notifications for individual users",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      }
+    },
+    "Leaderboard": {
+      "title": "Leaderboard",
+      "description": "Ranking of top players",
+      "type": "object",
+      "properties": {
+        "username": { "type": "string" },
+        "vipLevel": { "type": "number" },
+        "totalWinnings": { "type": "number" },
+        "gamesPlayed": { "type": "number" },
+        "rank": { "type": "number" }
+      }
+    },
+    "SupportTicket": {
+      "title": "SupportTicket",
+      "description": "In-app support and messaging tickets",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "username": { "type": "string" },
+        "subject": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string" },
+        "reply": { "type": "string" },
+        "createdAt": { "type": "string" }
+      }
+    },
+    "News": {
+      "title": "News",
+      "description": "Sports news items",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "image": { "type": "string" },
+        "createdAt": { "type": "string" }
+      }
+    },
+    "SupportChannel": {
+      "title": "SupportChannel",
+      "description": "Primary support contact channels like WhatsApp or Telegram",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "icon": { "type": "string" },
+        "link": { "type": "string" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      }
+    },
+    "Banner": {
+      "title": "Banner",
+      "description": "Carousel sliders and promotion banners",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "description": { "type": "string" },
+        "image": { "type": "string" },
+        "linkTab": { "type": "string" },
+        "buttonText": { "type": "string" },
+        "active": { "type": "boolean" },
+        "isImageOnly": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      }
+    },
+    "Settings": {
+      "title": "Settings",
+      "description": "System and administrative settings",
+      "type": "object",
+      "properties": {
+        "siteName": { "type": "string" },
+        "maintenanceMode": { "type": "boolean" },
+        "minDeposit": { "type": "number" },
+        "minWithdraw": { "type": "number" },
+        "bKashNumber": { "type": "string" },
+        "nagadNumber": { "type": "string" },
+        "rocketNumber": { "type": "string" },
+        "referralBonus": { "type": "number" },
+        "userWinningPercentage": { "type": "number" },
+        "maxWinPercentageOfDeposit": { "type": "number" },
+        "marqueeNotice": { "type": "string" }
       }
     }
   },
   "firestore": {
-    "app_state/{documentId}": {
-      "schema": "AppState",
-      "description": "Durable application collections synced from Express server"
+    "users/{documentId}": {
+      "schema": "User",
+      "description": "Direct individual user profiles"
+    },
+    "matches/{documentId}": {
+      "schema": "Match",
+      "description": "Direct individual matches"
+    },
+    "predictions/{documentId}": {
+      "schema": "Prediction",
+      "description": "Direct individual predictions"
+    },
+    "transactions/{documentId}": {
+      "schema": "Transaction",
+      "description": "Direct individual transactions"
+    },
+    "promotions/{documentId}": {
+      "schema": "Promotion",
+      "description": "Direct individual promotions"
+    },
+    "notifications/{documentId}": {
+      "schema": "Notification",
+      "description": "Direct individual notifications"
+    },
+    "leaderboard/{documentId}": {
+      "schema": "Leaderboard",
+      "description": "Direct individual leaderboard rankings"
+    },
+    "supportTickets/{documentId}": {
+      "schema": "SupportTicket",
+      "description": "Direct individual support tickets"
+    },
+    "news/{documentId}": {
+      "schema": "News",
+      "description": "Direct individual news articles"
+    },
+    "supportChannels/{documentId}": {
+      "schema": "SupportChannel",
+      "description": "Direct individual customer support channels"
+    },
+    "banners/{documentId}": {
+      "schema": "Banner",
+      "description": "Direct individual slides and banners"
+    },
+    "settings/{documentId}": {
+      "schema": "Settings",
+      "description": "System administrative variables"
     }
   }
 }

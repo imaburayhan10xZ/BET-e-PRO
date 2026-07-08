@@ -7,7 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, onSnapshot } from 'firebase/firestore';
 import { 
   User, Match, Prediction, Transaction, 
   Promotion, Notification, LeaderboardEntry, 
@@ -608,24 +608,54 @@ export function writeLocalDb(data: DatabaseSchema): void {
   }
 }
 
-export async function saveDbToFirestore(data: DatabaseSchema): Promise<void> {
+export async function syncCollectionToFirestore<T extends { id?: string; username?: string }>(
+  collectionName: string,
+  newItems: T[],
+  oldItems: T[],
+  idKey: keyof T = 'id'
+): Promise<void> {
   const firestore = getFirestoreDb();
   if (!firestore) return;
 
   try {
-    const keys: (keyof DatabaseSchema)[] = [
-      'users', 'matches', 'predictions', 'transactions', 'promotions', 
-      'notifications', 'leaderboard', 'supportTickets', 'news', 
-      'settings', 'supportChannels', 'banners'
-    ];
+    const newMap = new Map<string, T>();
+    newItems.forEach(item => {
+      const key = String(item[idKey] || '');
+      if (key) newMap.set(key, item);
+    });
 
-    await Promise.all(keys.map(k => {
-      const ref = doc(firestore, 'app_state', k);
-      return setDoc(ref, { value: data[k] || [] });
-    }));
-    console.log('[BETEPRO] Database state synced to Firestore.');
+    const oldMap = new Map<string, T>();
+    oldItems.forEach(item => {
+      const key = String(item[idKey] || '');
+      if (key) oldMap.set(key, item);
+    });
+
+    const promises: Promise<any>[] = [];
+
+    // 1. Find added or updated items
+    for (const [key, newItem] of newMap.entries()) {
+      const oldItem = oldMap.get(key);
+      if (!oldItem || JSON.stringify(newItem) !== JSON.stringify(oldItem)) {
+        const docRef = doc(firestore, collectionName, key);
+        const cleanData = JSON.parse(JSON.stringify(newItem));
+        promises.push(setDoc(docRef, cleanData));
+      }
+    }
+
+    // 2. Find deleted items
+    for (const key of oldMap.keys()) {
+      if (!newMap.has(key)) {
+        const docRef = doc(firestore, collectionName, key);
+        promises.push(deleteDoc(docRef));
+      }
+    }
+
+    if (promises.length > 0) {
+      await Promise.all(promises);
+      console.log(`[BETEPRO] Synced ${promises.length} changes to Firestore collection: ${collectionName}`);
+    }
   } catch (err) {
-    console.error('[BETEPRO] Error saving database state to Firestore:', err);
+    console.error(`[BETEPRO] Error syncing collection ${collectionName} to Firestore:`, err);
   }
 }
 
@@ -638,81 +668,160 @@ export async function ensureDbLoaded(): Promise<DatabaseSchema> {
   }
 
   isLoading = true;
-  loadPromise = (async () => {
+  loadPromise = new Promise<DatabaseSchema>((resolve) => {
     const firestore = getFirestoreDb();
     if (!firestore) {
       console.warn('Firestore is not configured. Falling back to local DB.');
       cachedDb = readLocalDb();
       isLoaded = true;
       isLoading = false;
-      return cachedDb;
+      resolve(cachedDb);
+      return;
     }
 
-    try {
-      console.log('[BETEPRO] Loading database state from Firestore...');
-      const keys: (keyof DatabaseSchema)[] = [
-        'users', 'matches', 'predictions', 'transactions', 'promotions', 
-        'notifications', 'leaderboard', 'supportTickets', 'news', 
-        'settings', 'supportChannels', 'banners'
-      ];
+    console.log('[BETEPRO] Initializing direct Firestore collection sync...');
+    
+    // Create cachedDb skeleton
+    cachedDb = {
+      users: [],
+      matches: [],
+      predictions: [],
+      transactions: [],
+      promotions: [],
+      notifications: [],
+      leaderboard: [],
+      supportTickets: [],
+      news: [],
+      settings: DEFAULT_SETTINGS,
+      supportChannels: [],
+      banners: []
+    };
 
-      const docRefs = keys.map(k => doc(firestore, 'app_state', k));
-      const snapshots = await Promise.all(docRefs.map(ref => getDoc(ref)));
+    const keys: (keyof DatabaseSchema)[] = [
+      'users', 'matches', 'predictions', 'transactions', 'promotions', 
+      'notifications', 'leaderboard', 'supportTickets', 'news', 
+      'settings', 'supportChannels', 'banners'
+    ];
+    
+    const loadedCollections = new Set<string>();
 
-      const dbObj = {} as any;
-      let missingAny = false;
-
-      snapshots.forEach((snap, idx) => {
-        const key = keys[idx];
-        if (snap.exists()) {
-          const dataVal = snap.data();
-          dbObj[key] = dataVal.value;
-        } else {
-          missingAny = true;
-        }
-      });
-
-      if (missingAny) {
-        console.log('[BETEPRO] Firestore state is incomplete. Seeding from local/default data...');
-        const localDb = readLocalDb();
-        cachedDb = localDb;
+    const checkAllLoaded = () => {
+      if (keys.every(k => loadedCollections.has(k))) {
+        console.log('[BETEPRO] Direct Firestore bi-directional real-time sync active and fully loaded!');
         isLoaded = true;
         isLoading = false;
-        
-        await saveDbToFirestore(localDb);
-        return cachedDb;
+        resolve(cachedDb!);
       }
+    };
 
-      cachedDb = dbObj as DatabaseSchema;
-      if (!cachedDb.settings) cachedDb.settings = DEFAULT_SETTINGS;
-      if (!cachedDb.users) cachedDb.users = [];
+    const listCollections: { key: keyof DatabaseSchema; idKey: string }[] = [
+      { key: 'users', idKey: 'id' },
+      { key: 'matches', idKey: 'id' },
+      { key: 'predictions', idKey: 'id' },
+      { key: 'transactions', idKey: 'id' },
+      { key: 'promotions', idKey: 'id' },
+      { key: 'notifications', idKey: 'id' },
+      { key: 'leaderboard', idKey: 'username' },
+      { key: 'supportTickets', idKey: 'id' },
+      { key: 'news', idKey: 'id' },
+      { key: 'supportChannels', idKey: 'id' },
+      { key: 'banners', idKey: 'id' }
+    ];
 
-      let mutated = false;
-      cachedDb.users.forEach(u => {
-        const emailLower = u.email?.toLowerCase();
-        if (u.username === 'admin' || emailLower === 'admin@betepro.com' || emailLower === 'aburayhan10x@gmail.com') {
-          if (u.role !== 'primary_admin') {
-            u.role = 'primary_admin';
-            mutated = true;
-          }
+    listCollections.forEach(({ key, idKey }) => {
+      onSnapshot(collection(firestore, key), (snapshot) => {
+        const items: any[] = [];
+        snapshot.forEach(docSnap => {
+          items.push({ [idKey]: docSnap.id, ...docSnap.data() });
+        });
+        
+        // Ensure aburayhan10x@gmail.com and admin role settings are respected
+        if (key === 'users') {
+          items.forEach(u => {
+            const emailLower = u.email?.toLowerCase();
+            if (u.username === 'admin' || emailLower === 'admin@betepro.com' || emailLower === 'aburayhan10x@gmail.com') {
+              u.role = 'primary_admin';
+            }
+          });
+        }
+
+        if (cachedDb) {
+          cachedDb[key] = items as any;
+        }
+        
+        if (!loadedCollections.has(key)) {
+          loadedCollections.add(key);
+          checkAllLoaded();
+        }
+      }, (err) => {
+        console.error(`[BETEPRO] error listening to ${key}:`, err);
+        if (!loadedCollections.has(key)) {
+          loadedCollections.add(key);
+          checkAllLoaded();
         }
       });
-      if (mutated) {
-        await saveDbToFirestore(cachedDb);
+    });
+
+    onSnapshot(doc(firestore, 'settings', 'system'), (docSnap) => {
+      if (docSnap.exists()) {
+        if (cachedDb) {
+          cachedDb.settings = docSnap.data() as SystemSettings;
+        }
+      } else {
+        console.log('[BETEPRO] Settings document not found in system. Seeding default...');
+        setDoc(doc(firestore, 'settings', 'system'), DEFAULT_SETTINGS);
+        if (cachedDb) {
+          cachedDb.settings = DEFAULT_SETTINGS;
+        }
       }
 
-      console.log('[BETEPRO] Database loaded from Firestore successfully!');
-      isLoaded = true;
-      isLoading = false;
-      return cachedDb;
-    } catch (err) {
-      console.error('[BETEPRO] Firestore fetch failed, falling back to local file:', err);
-      cachedDb = readLocalDb();
-      isLoaded = true;
-      isLoading = false;
-      return cachedDb;
-    }
-  })();
+      if (!loadedCollections.has('settings')) {
+        loadedCollections.add('settings');
+        checkAllLoaded();
+      }
+    }, (err) => {
+      console.error('[BETEPRO] error listening to settings:', err);
+      if (!loadedCollections.has('settings')) {
+        loadedCollections.add('settings');
+        checkAllLoaded();
+      }
+    });
+
+    // Fallback seed timer (if collections are empty, we seed them)
+    setTimeout(async () => {
+      if (!isLoaded) {
+        console.warn('[BETEPRO] Firestore initial fetch timed out or empty. Seeding local defaults...');
+        try {
+          const defaultData = readLocalDb();
+          const seedPromises: Promise<any>[] = [];
+
+          const usersSnap = await getDoc(doc(firestore, 'users', 'user_admin'));
+          if (!usersSnap.exists()) {
+            console.log('[BETEPRO] Seeding empty Firestore database with default dataset...');
+            
+            listCollections.forEach(({ key, idKey }) => {
+              const list = defaultData[key] as any[];
+              list.forEach(item => {
+                const id = item[idKey];
+                if (id) {
+                  seedPromises.push(setDoc(doc(firestore, key, id), item));
+                }
+              });
+            });
+
+            seedPromises.push(setDoc(doc(firestore, 'settings', 'system'), defaultData.settings));
+            await Promise.all(seedPromises);
+            console.log('[BETEPRO] Successfully seeded Firestore database with default values.');
+          }
+        } catch (e) {
+          console.error('[BETEPRO] Seeding error:', e);
+        }
+
+        keys.forEach(k => loadedCollections.add(k));
+        checkAllLoaded();
+      }
+    }, 4000);
+  });
 
   return loadPromise;
 }
@@ -725,11 +834,36 @@ export function readDb(): DatabaseSchema {
 }
 
 export function writeDb(data: DatabaseSchema): void {
+  const oldDb = JSON.parse(JSON.stringify(cachedDb || readLocalDb()));
   cachedDb = data;
   writeLocalDb(data);
-  saveDbToFirestore(data).catch(err => {
-    console.error('[BETEPRO] Async Firestore save failed:', err);
-  });
+
+  const firestore = getFirestoreDb();
+  if (!firestore) return;
+
+  (async () => {
+    try {
+      await Promise.all([
+        syncCollectionToFirestore('users', data.users, oldDb.users, 'id'),
+        syncCollectionToFirestore('matches', data.matches, oldDb.matches, 'id'),
+        syncCollectionToFirestore('predictions', data.predictions, oldDb.predictions, 'id'),
+        syncCollectionToFirestore('transactions', data.transactions, oldDb.transactions, 'id'),
+        syncCollectionToFirestore('promotions', data.promotions, oldDb.promotions, 'id'),
+        syncCollectionToFirestore('notifications', data.notifications, oldDb.notifications, 'id'),
+        syncCollectionToFirestore('leaderboard', data.leaderboard, oldDb.leaderboard, 'username'),
+        syncCollectionToFirestore('supportTickets', data.supportTickets, oldDb.supportTickets, 'id'),
+        syncCollectionToFirestore('news', data.news, oldDb.news, 'id'),
+        syncCollectionToFirestore('supportChannels', data.supportChannels, oldDb.supportChannels, 'id'),
+        syncCollectionToFirestore('banners', data.banners, oldDb.banners, 'id')
+      ]);
+
+      if (JSON.stringify(data.settings) !== JSON.stringify(oldDb.settings)) {
+        await setDoc(doc(firestore, 'settings', 'system'), JSON.parse(JSON.stringify(data.settings)));
+      }
+    } catch (err) {
+      console.error('[BETEPRO] Async Firestore collection sync failed:', err);
+    }
+  })();
 }
 
 // Function to update Match stats and score dynamically to simulate Live sports ticker!
@@ -742,7 +876,6 @@ export function tickLiveScores(): void {
 
     changed = true;
     if (m.sport === 'football') {
-      // Small chance to increment score
       if (Math.random() < 0.08) {
         if (Math.random() < 0.5) {
           m.homeScore += 1;
@@ -750,11 +883,9 @@ export function tickLiveScores(): void {
           m.awayScore += 1;
         }
       }
-      // Mutate odds slightly
       m.odds.homeWin = Math.max(1.05, +(m.odds.homeWin + (Math.random() * 0.2 - 0.1)).toFixed(2));
       m.odds.awayWin = Math.max(1.05, +(m.odds.awayWin + (Math.random() * 0.2 - 0.1)).toFixed(2));
       
-      // Update statistics
       if (m.stats) {
         const homePossession = Math.min(75, Math.max(25, Math.floor(m.stats.possession?.[0] || 50 + (Math.random() * 6 - 3))));
         m.stats.possession = [homePossession, 100 - homePossession];
@@ -768,19 +899,15 @@ export function tickLiveScores(): void {
         }
       }
     } else if (m.sport === 'cricket') {
-      // Live cricket simulation: batting team score goes up
-      m.awayScore += Math.floor(Math.random() * 6); // Add runs (0, 1, 2, 3, 4, 5, 6)
-      // Mutate odds
+      m.awayScore += Math.floor(Math.random() * 6);
       m.odds.homeWin = Math.max(1.01, +(m.odds.homeWin + (Math.random() * 0.1 - 0.05)).toFixed(2));
       m.odds.awayWin = Math.max(1.01, +(m.odds.awayWin + (Math.random() * 0.2 - 0.1)).toFixed(2));
     } else if (m.sport === 'tennis') {
-      // Set & Point changes
       if (Math.random() < 0.15) {
         m.odds.homeWin = +(1.5 + Math.random()).toFixed(2);
         m.odds.awayWin = +(1.5 + Math.random()).toFixed(2);
       }
     } else if (m.sport === 'esports') {
-      // Esports stats / score change
       if (Math.random() < 0.06) {
         if (Math.random() < 0.5) {
           m.homeScore += 1;
