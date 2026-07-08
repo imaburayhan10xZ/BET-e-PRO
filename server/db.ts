@@ -6,6 +6,8 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import { initializeApp } from 'firebase/app';
+import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
 import { 
   User, Match, Prediction, Transaction, 
   Promotion, Notification, LeaderboardEntry, 
@@ -464,10 +466,36 @@ function getSeedData(): DatabaseSchema {
   };
 }
 
-export function readDb(): DatabaseSchema {
+let cachedDb: DatabaseSchema | null = null;
+let isLoaded = false;
+let isLoading = false;
+let loadPromise: Promise<DatabaseSchema> | null = null;
+
+const CONFIG_FILE = path.join(process.cwd(), 'firebase-applet-config.json');
+let dbInstance: any = null;
+
+export function getFirestoreDb() {
+  if (!dbInstance) {
+    if (fs.existsSync(CONFIG_FILE)) {
+      try {
+        const configRaw = fs.readFileSync(CONFIG_FILE, 'utf-8');
+        const firebaseConfig = JSON.parse(configRaw);
+        const app = initializeApp(firebaseConfig);
+        dbInstance = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+      } catch (err) {
+        console.error('Error initializing Firebase in server/db:', err);
+      }
+    } else {
+      console.error('firebase-applet-config.json not found on disk at:', CONFIG_FILE);
+    }
+  }
+  return dbInstance;
+}
+
+export function readLocalDb(): DatabaseSchema {
   if (!fs.existsSync(DATA_FILE)) {
     const defaultData = getSeedData();
-    writeDb(defaultData);
+    writeLocalDb(defaultData);
     return defaultData;
   }
   try {
@@ -551,7 +579,6 @@ export function readDb(): DatabaseSchema {
       parsed.settings.marqueeNotice = '🎁🎁🎁 BETEPRO-তে স্বাগতম! নগদের মাধ্যমে প্রতিটি ডিপোজিটে ১.৫% বোনাস সরাসরি ওয়ালেট ব্যালেন্সে ইনস্ট্যান্ট যুক্ত হচ্ছে! এছাড়া রেফার করুন এবং প্রতি রেফারে ২০০ টাকা ফ্রি বোনাস লুফে নিন! 🎁🎁🎁';
       mutated = true;
     }
-    // Also make sure user roles have primary_admin for admin users
     parsed.users?.forEach(u => {
       const emailLower = u.email?.toLowerCase();
       if (u.username === 'admin' || emailLower === 'admin@betepro.com' || emailLower === 'aburayhan10x@gmail.com') {
@@ -562,23 +589,147 @@ export function readDb(): DatabaseSchema {
       }
     });
     if (mutated) {
-      writeDb(parsed);
+      writeLocalDb(parsed);
     }
     return parsed;
   } catch (error) {
-    console.error('Error reading DB, restoring default seed data:', error);
+    console.error('Error reading local DB, restoring default seed data:', error);
     const defaultData = getSeedData();
-    writeDb(defaultData);
+    writeLocalDb(defaultData);
     return defaultData;
   }
 }
 
-export function writeDb(data: DatabaseSchema): void {
+export function writeLocalDb(data: DatabaseSchema): void {
   try {
     fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf-8');
   } catch (error) {
-    console.error('Error writing to DB file:', error);
+    console.error('Error writing to local DB file:', error);
   }
+}
+
+export async function saveDbToFirestore(data: DatabaseSchema): Promise<void> {
+  const firestore = getFirestoreDb();
+  if (!firestore) return;
+
+  try {
+    const keys: (keyof DatabaseSchema)[] = [
+      'users', 'matches', 'predictions', 'transactions', 'promotions', 
+      'notifications', 'leaderboard', 'supportTickets', 'news', 
+      'settings', 'supportChannels', 'banners'
+    ];
+
+    await Promise.all(keys.map(k => {
+      const ref = doc(firestore, 'app_state', k);
+      return setDoc(ref, { value: data[k] || [] });
+    }));
+    console.log('[BETEPRO] Database state synced to Firestore.');
+  } catch (err) {
+    console.error('[BETEPRO] Error saving database state to Firestore:', err);
+  }
+}
+
+export async function ensureDbLoaded(): Promise<DatabaseSchema> {
+  if (isLoaded && cachedDb) {
+    return cachedDb;
+  }
+  if (isLoading && loadPromise) {
+    return loadPromise;
+  }
+
+  isLoading = true;
+  loadPromise = (async () => {
+    const firestore = getFirestoreDb();
+    if (!firestore) {
+      console.warn('Firestore is not configured. Falling back to local DB.');
+      cachedDb = readLocalDb();
+      isLoaded = true;
+      isLoading = false;
+      return cachedDb;
+    }
+
+    try {
+      console.log('[BETEPRO] Loading database state from Firestore...');
+      const keys: (keyof DatabaseSchema)[] = [
+        'users', 'matches', 'predictions', 'transactions', 'promotions', 
+        'notifications', 'leaderboard', 'supportTickets', 'news', 
+        'settings', 'supportChannels', 'banners'
+      ];
+
+      const docRefs = keys.map(k => doc(firestore, 'app_state', k));
+      const snapshots = await Promise.all(docRefs.map(ref => getDoc(ref)));
+
+      const dbObj = {} as any;
+      let missingAny = false;
+
+      snapshots.forEach((snap, idx) => {
+        const key = keys[idx];
+        if (snap.exists()) {
+          const dataVal = snap.data();
+          dbObj[key] = dataVal.value;
+        } else {
+          missingAny = true;
+        }
+      });
+
+      if (missingAny) {
+        console.log('[BETEPRO] Firestore state is incomplete. Seeding from local/default data...');
+        const localDb = readLocalDb();
+        cachedDb = localDb;
+        isLoaded = true;
+        isLoading = false;
+        
+        await saveDbToFirestore(localDb);
+        return cachedDb;
+      }
+
+      cachedDb = dbObj as DatabaseSchema;
+      if (!cachedDb.settings) cachedDb.settings = DEFAULT_SETTINGS;
+      if (!cachedDb.users) cachedDb.users = [];
+
+      let mutated = false;
+      cachedDb.users.forEach(u => {
+        const emailLower = u.email?.toLowerCase();
+        if (u.username === 'admin' || emailLower === 'admin@betepro.com' || emailLower === 'aburayhan10x@gmail.com') {
+          if (u.role !== 'primary_admin') {
+            u.role = 'primary_admin';
+            mutated = true;
+          }
+        }
+      });
+      if (mutated) {
+        await saveDbToFirestore(cachedDb);
+      }
+
+      console.log('[BETEPRO] Database loaded from Firestore successfully!');
+      isLoaded = true;
+      isLoading = false;
+      return cachedDb;
+    } catch (err) {
+      console.error('[BETEPRO] Firestore fetch failed, falling back to local file:', err);
+      cachedDb = readLocalDb();
+      isLoaded = true;
+      isLoading = false;
+      return cachedDb;
+    }
+  })();
+
+  return loadPromise;
+}
+
+export function readDb(): DatabaseSchema {
+  if (!cachedDb) {
+    cachedDb = readLocalDb();
+  }
+  return cachedDb;
+}
+
+export function writeDb(data: DatabaseSchema): void {
+  cachedDb = data;
+  writeLocalDb(data);
+  saveDbToFirestore(data).catch(err => {
+    console.error('[BETEPRO] Async Firestore save failed:', err);
+  });
 }
 
 // Function to update Match stats and score dynamically to simulate Live sports ticker!

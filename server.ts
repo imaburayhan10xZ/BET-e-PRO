@@ -9,7 +9,7 @@ import { createServer as createViteServer } from 'vite';
 import { 
   readDb, writeDb, tickLiveScores, 
   hashPassword, generateSalt, VIP_LEVELS,
-  DatabaseSchema
+  DatabaseSchema, ensureDbLoaded
 } from './server/db';
 import { 
   signJwt, authenticateToken, requireAdmin, 
@@ -24,9 +24,19 @@ import {
 
 const PORT = 3000;
 
-async function startServer() {
+export function createApp() {
   const app = express();
   app.use(express.json());
+
+  // Database initialization middleware to load state from Firestore
+  app.use(async (req, res, next) => {
+    try {
+      await ensureDbLoaded();
+    } catch (err) {
+      console.error('[BETEPRO] Database load error:', err);
+    }
+    next();
+  });
 
   // In-memory active game states
   interface MinesState {
@@ -3321,9 +3331,16 @@ async function startServer() {
     });
   });
 
-  // ==========================================
-  // VITE DEVELOPMENT MIDDLEWARE SETUP
-  // ==========================================
+  return app;
+}
+
+export const app = createApp();
+
+async function startServer() {
+  // Background ticker to simulate live sport updates
+  setInterval(() => {
+    tickLiveScores();
+  }, 10000);
 
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
@@ -3346,6 +3363,8 @@ async function startServer() {
 }
 
 // Start database bootstrapping and launch server
-startServer().catch(err => {
-  console.error('Failed to boot full-stack server:', err);
-});
+if (process.env.VERCEL !== '1') {
+  startServer().catch(err => {
+    console.error('Failed to boot full-stack server:', err);
+  });
+}

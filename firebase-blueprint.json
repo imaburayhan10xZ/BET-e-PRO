@@ -1,0 +1,21 @@
+{
+  "entities": {
+    "AppState": {
+      "title": "AppState",
+      "description": "Stores individual pieces of the application state",
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "array",
+          "description": "The data content for the specific collection"
+        }
+      }
+    }
+  },
+  "firestore": {
+    "app_state/{documentId}": {
+      "schema": "AppState",
+      "description": "Durable application collections synced from Express server"
+    }
+  }
+}
