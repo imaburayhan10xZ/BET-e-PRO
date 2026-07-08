@@ -100,7 +100,7 @@ export function createApp() {
   // ==========================================
 
   // User registration
-  app.post('/api/auth/register', (req, res) => {
+  app.post('/api/auth/register', async (req, res) => {
     const { username, email, phone, password, referralCode } = req.body;
 
     if (!username || !email || !password) {
@@ -210,7 +210,7 @@ export function createApp() {
       }
     }
 
-    writeDb(db);
+    await writeDb(db);
 
     const token = signJwt({ id: userId, role: 'user' });
 
@@ -283,7 +283,7 @@ export function createApp() {
   });
 
   // Firebase Authentication Sync (Log in or sign up with Firebase)
-  app.post('/api/auth/firebase-sync', (req, res) => {
+  app.post('/api/auth/firebase-sync', async (req, res) => {
     const { email, uid, username, referralCode } = req.body;
 
     if (!email || !uid) {
@@ -313,7 +313,7 @@ export function createApp() {
       if (isAdminEmail && user.role !== 'primary_admin') {
         user.role = 'primary_admin';
       }
-      writeDb(db);
+      await writeDb(db);
     } else {
       // User does not exist, let's create a new profile in local database
       const finalUsername = username || email.split('@')[0] || 'player_' + Math.random().toString(36).substr(2, 5);
@@ -389,7 +389,7 @@ export function createApp() {
         }
       }
 
-      writeDb(db);
+      await writeDb(db);
       user = newUser;
     }
 
@@ -2292,7 +2292,7 @@ export function createApp() {
   });
 
   // Manage Users - Adjust Balance
-  app.put('/api/admin/users/:id/balance', authenticateToken, requireAdmin, (req, res) => {
+  app.put('/api/admin/users/:id/balance', authenticateToken, requireAdmin, async (req, res) => {
     const { id } = req.params;
     const { amount, action } = req.body; // action: 'add' | 'deduct'
 
@@ -2346,12 +2346,12 @@ export function createApp() {
       createdAt: new Date().toISOString()
     });
 
-    writeDb(db);
+    await writeDb(db);
     res.json({ message: 'Balance adjusted successfully!', userBalance: user.balance });
   });
 
   // Manage Users - Block/Unblock
-  app.put('/api/admin/users/:id/block', authenticateToken, requireAdmin, (req, res) => {
+  app.put('/api/admin/users/:id/block', authenticateToken, requireAdmin, async (req, res) => {
     const { id } = req.params;
     const { isBlocked } = req.body;
 
@@ -2369,13 +2369,13 @@ export function createApp() {
     }
 
     user.isBlocked = !!isBlocked;
-    writeDb(db);
+    await writeDb(db);
 
     res.json({ message: `User account is now ${isBlocked ? 'suspended' : 'active'}.` });
   });
 
   // Manage Users - Change Role
-  app.put('/api/admin/users/:id/role', authenticateToken, requireAdmin, (req: AuthenticatedRequest, res) => {
+  app.put('/api/admin/users/:id/role', authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res) => {
     const { id } = req.params;
     const { role } = req.body; // 'user' | 'admin'
 
@@ -2398,7 +2398,7 @@ export function createApp() {
     }
 
     targetUser.role = role;
-    writeDb(db);
+    await writeDb(db);
 
     res.json({ message: `User ${targetUser.username} role updated to ${role} successfully.`, user: targetUser });
   });

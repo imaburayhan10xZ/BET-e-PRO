@@ -7,7 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, onSnapshot } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, getDocs } from 'firebase/firestore';
 import { 
   User, Match, Prediction, Transaction, 
   Promotion, Notification, LeaderboardEntry, 
@@ -470,6 +470,7 @@ let cachedDb: DatabaseSchema | null = null;
 let isLoaded = false;
 let isLoading = false;
 let loadPromise: Promise<DatabaseSchema> | null = null;
+let lastLoadTime = 0;
 
 const CONFIG_FILE = path.join(process.cwd(), 'firebase-applet-config.json');
 let dbInstance: any = null;
@@ -660,173 +661,143 @@ export async function syncCollectionToFirestore<T extends { id?: string; usernam
 }
 
 export async function ensureDbLoaded(): Promise<DatabaseSchema> {
-  if (isLoaded && cachedDb) {
+  const now = Date.now();
+  if (isLoaded && cachedDb && (now - lastLoadTime < 5000)) {
     return cachedDb;
   }
+
   if (isLoading && loadPromise) {
     return loadPromise;
   }
 
   isLoading = true;
-  loadPromise = new Promise<DatabaseSchema>((resolve) => {
+  loadPromise = (async () => {
     const firestore = getFirestoreDb();
     if (!firestore) {
       console.warn('Firestore is not configured. Falling back to local DB.');
       cachedDb = readLocalDb();
       isLoaded = true;
       isLoading = false;
-      resolve(cachedDb);
-      return;
+      lastLoadTime = Date.now();
+      return cachedDb;
     }
 
-    console.log('[BETEPRO] Initializing direct Firestore collection sync...');
-    
-    // Create cachedDb skeleton
-    cachedDb = {
-      users: [],
-      matches: [],
-      predictions: [],
-      transactions: [],
-      promotions: [],
-      notifications: [],
-      leaderboard: [],
-      supportTickets: [],
-      news: [],
-      settings: DEFAULT_SETTINGS,
-      supportChannels: [],
-      banners: []
-    };
+    console.log('[BETEPRO] Fetching database state from Firestore...');
+    try {
+      const listCollections: { key: keyof DatabaseSchema; idKey: string }[] = [
+        { key: 'users', idKey: 'id' },
+        { key: 'matches', idKey: 'id' },
+        { key: 'predictions', idKey: 'id' },
+        { key: 'transactions', idKey: 'id' },
+        { key: 'promotions', idKey: 'id' },
+        { key: 'notifications', idKey: 'id' },
+        { key: 'leaderboard', idKey: 'username' },
+        { key: 'supportTickets', idKey: 'id' },
+        { key: 'news', idKey: 'id' },
+        { key: 'supportChannels', idKey: 'id' },
+        { key: 'banners', idKey: 'id' }
+      ];
 
-    const keys: (keyof DatabaseSchema)[] = [
-      'users', 'matches', 'predictions', 'transactions', 'promotions', 
-      'notifications', 'leaderboard', 'supportTickets', 'news', 
-      'settings', 'supportChannels', 'banners'
-    ];
-    
-    const loadedCollections = new Set<string>();
+      const newDb: any = {
+        users: [],
+        matches: [],
+        predictions: [],
+        transactions: [],
+        promotions: [],
+        notifications: [],
+        leaderboard: [],
+        supportTickets: [],
+        news: [],
+        settings: DEFAULT_SETTINGS,
+        supportChannels: [],
+        banners: []
+      };
 
-    const listCollections: { key: keyof DatabaseSchema; idKey: string }[] = [
-      { key: 'users', idKey: 'id' },
-      { key: 'matches', idKey: 'id' },
-      { key: 'predictions', idKey: 'id' },
-      { key: 'transactions', idKey: 'id' },
-      { key: 'promotions', idKey: 'id' },
-      { key: 'notifications', idKey: 'id' },
-      { key: 'leaderboard', idKey: 'username' },
-      { key: 'supportTickets', idKey: 'id' },
-      { key: 'news', idKey: 'id' },
-      { key: 'supportChannels', idKey: 'id' },
-      { key: 'banners', idKey: 'id' }
-    ];
-
-    const checkAllLoaded = async () => {
-      if (keys.every(k => loadedCollections.has(k))) {
-        // Automatically seed if the database is completely empty (no users or matches present)
-        if (cachedDb!.users.length === 0 && cachedDb!.matches.length === 0) {
-          console.log('[BETEPRO] Firestore database is empty. Sync seeding default dataset now...');
+      // Fetch all collections in parallel!
+      await Promise.all([
+        ...listCollections.map(async ({ key, idKey }) => {
           try {
-            const defaultData = readLocalDb();
-            const seedPromises: Promise<any>[] = [];
-
-            listCollections.forEach(({ key, idKey }) => {
-              const list = defaultData[key] as any[];
-              list.forEach(item => {
-                const id = item[idKey];
-                if (id) {
-                  seedPromises.push(setDoc(doc(firestore, key, id), item));
-                }
-              });
+            const querySnapshot = await getDocs(collection(firestore, key));
+            const items: any[] = [];
+            querySnapshot.forEach((docSnap) => {
+              items.push({ [idKey]: docSnap.id, ...docSnap.data() });
             });
 
-            seedPromises.push(setDoc(doc(firestore, 'settings', 'system'), defaultData.settings));
-            await Promise.all(seedPromises);
-            console.log('[BETEPRO] Successfully seeded Firestore with all collections and documents!');
-            
-            // Sync current cachedDb state with seeded data
-            Object.assign(cachedDb!, defaultData);
-          } catch (e) {
-            console.error('[BETEPRO] Error seeding Firestore on load:', e);
+            // Ensure aburayhan10x@gmail.com and admin role settings are respected
+            if (key === 'users') {
+              items.forEach(u => {
+                const emailLower = u.email?.toLowerCase();
+                if (u.username === 'admin' || emailLower === 'admin@betepro.com' || emailLower === 'aburayhan10x@gmail.com') {
+                  u.role = 'primary_admin';
+                }
+              });
+            }
+
+            newDb[key] = items;
+          } catch (err) {
+            console.error(`[BETEPRO] Failed to fetch collection ${key} from Firestore:`, err);
+            // Fallback to local DB list for this key if it fails
+            const local = readLocalDb();
+            newDb[key] = local[key] || [];
           }
-        }
+        }),
+        // Fetch settings document
+        (async () => {
+          try {
+            const systemDoc = await getDoc(doc(firestore, 'settings', 'system'));
+            if (systemDoc.exists()) {
+              newDb.settings = systemDoc.data() as SystemSettings;
+            } else {
+              console.log('[BETEPRO] Settings document not found in system. Seeding default...');
+              await setDoc(doc(firestore, 'settings', 'system'), DEFAULT_SETTINGS);
+              newDb.settings = DEFAULT_SETTINGS;
+            }
+          } catch (err) {
+            console.error('[BETEPRO] Failed to fetch settings from Firestore:', err);
+            const local = readLocalDb();
+            newDb.settings = local.settings || DEFAULT_SETTINGS;
+          }
+        })()
+      ]);
 
-        console.log('[BETEPRO] Direct Firestore bi-directional real-time sync active and fully loaded!');
-        isLoaded = true;
-        isLoading = false;
-        resolve(cachedDb!);
-      }
-    };
+      // Seed if empty
+      if (newDb.users.length === 0 && newDb.matches.length === 0) {
+        console.log('[BETEPRO] Firestore database is empty. Seeding default dataset now...');
+        const defaultData = readLocalDb();
+        const seedPromises: Promise<any>[] = [];
 
-    listCollections.forEach(({ key, idKey }) => {
-      onSnapshot(collection(firestore, key), (snapshot) => {
-        const items: any[] = [];
-        snapshot.forEach(docSnap => {
-          items.push({ [idKey]: docSnap.id, ...docSnap.data() });
-        });
-        
-        // Ensure aburayhan10x@gmail.com and admin role settings are respected
-        if (key === 'users') {
-          items.forEach(u => {
-            const emailLower = u.email?.toLowerCase();
-            if (u.username === 'admin' || emailLower === 'admin@betepro.com' || emailLower === 'aburayhan10x@gmail.com') {
-              u.role = 'primary_admin';
+        listCollections.forEach(({ key, idKey }) => {
+          const list = defaultData[key] as any[];
+          list.forEach(item => {
+            const id = item[idKey];
+            if (id) {
+              seedPromises.push(setDoc(doc(firestore, key, id), item));
             }
           });
-        }
+        });
 
-        if (cachedDb) {
-          cachedDb[key] = items as any;
-          writeLocalDb(cachedDb);
-        }
-        
-        if (!loadedCollections.has(key)) {
-          loadedCollections.add(key);
-          checkAllLoaded();
-        }
-      }, (err) => {
-        console.error(`[BETEPRO] error listening to ${key}:`, err);
-        if (!loadedCollections.has(key)) {
-          loadedCollections.add(key);
-          checkAllLoaded();
-        }
-      });
-    });
-
-    onSnapshot(doc(firestore, 'settings', 'system'), (docSnap) => {
-      if (docSnap.exists()) {
-        if (cachedDb) {
-          cachedDb.settings = docSnap.data() as SystemSettings;
-          writeLocalDb(cachedDb);
-        }
+        seedPromises.push(setDoc(doc(firestore, 'settings', 'system'), defaultData.settings));
+        await Promise.all(seedPromises);
+        console.log('[BETEPRO] Successfully seeded Firestore!');
+        cachedDb = defaultData;
       } else {
-        console.log('[BETEPRO] Settings document not found in system. Seeding default...');
-        setDoc(doc(firestore, 'settings', 'system'), DEFAULT_SETTINGS);
-        if (cachedDb) {
-          cachedDb.settings = DEFAULT_SETTINGS;
-          writeLocalDb(cachedDb);
-        }
+        cachedDb = newDb;
       }
 
-      if (!loadedCollections.has('settings')) {
-        loadedCollections.add('settings');
-        checkAllLoaded();
-      }
-    }, (err) => {
-      console.error('[BETEPRO] error listening to settings:', err);
-      if (!loadedCollections.has('settings')) {
-        loadedCollections.add('settings');
-        checkAllLoaded();
-      }
-    });
-
-    // Fallback timer if Firestore takes too long to load
-    setTimeout(async () => {
-      if (!isLoaded) {
-        console.warn('[BETEPRO] Firestore initial fetch timed out. Resolving cached/local defaults...');
-        keys.forEach(k => loadedCollections.add(k));
-        checkAllLoaded();
-      }
-    }, 5000);
-  });
+      writeLocalDb(cachedDb!);
+      isLoaded = true;
+      isLoading = false;
+      lastLoadTime = Date.now();
+      return cachedDb!;
+    } catch (err) {
+      console.error('[BETEPRO] Error fetching from Firestore, falling back to local DB:', err);
+      cachedDb = readLocalDb();
+      isLoaded = true;
+      isLoading = false;
+      lastLoadTime = Date.now();
+      return cachedDb;
+    }
+  })();
 
   return loadPromise;
 }
@@ -838,7 +809,7 @@ export function readDb(): DatabaseSchema {
   return cachedDb;
 }
 
-export function writeDb(data: DatabaseSchema): void {
+export async function writeDb(data: DatabaseSchema): Promise<void> {
   const oldDb = readLocalDb();
   cachedDb = data;
   writeLocalDb(data);
@@ -846,29 +817,27 @@ export function writeDb(data: DatabaseSchema): void {
   const firestore = getFirestoreDb();
   if (!firestore) return;
 
-  (async () => {
-    try {
-      await Promise.all([
-        syncCollectionToFirestore('users', data.users, oldDb.users, 'id'),
-        syncCollectionToFirestore('matches', data.matches, oldDb.matches, 'id'),
-        syncCollectionToFirestore('predictions', data.predictions, oldDb.predictions, 'id'),
-        syncCollectionToFirestore('transactions', data.transactions, oldDb.transactions, 'id'),
-        syncCollectionToFirestore('promotions', data.promotions, oldDb.promotions, 'id'),
-        syncCollectionToFirestore('notifications', data.notifications, oldDb.notifications, 'id'),
-        syncCollectionToFirestore('leaderboard', data.leaderboard, oldDb.leaderboard, 'username'),
-        syncCollectionToFirestore('supportTickets', data.supportTickets, oldDb.supportTickets, 'id'),
-        syncCollectionToFirestore('news', data.news, oldDb.news, 'id'),
-        syncCollectionToFirestore('supportChannels', data.supportChannels, oldDb.supportChannels, 'id'),
-        syncCollectionToFirestore('banners', data.banners, oldDb.banners, 'id')
-      ]);
+  try {
+    await Promise.all([
+      syncCollectionToFirestore('users', data.users, oldDb.users, 'id'),
+      syncCollectionToFirestore('matches', data.matches, oldDb.matches, 'id'),
+      syncCollectionToFirestore('predictions', data.predictions, oldDb.predictions, 'id'),
+      syncCollectionToFirestore('transactions', data.transactions, oldDb.transactions, 'id'),
+      syncCollectionToFirestore('promotions', data.promotions, oldDb.promotions, 'id'),
+      syncCollectionToFirestore('notifications', data.notifications, oldDb.notifications, 'id'),
+      syncCollectionToFirestore('leaderboard', data.leaderboard, oldDb.leaderboard, 'username'),
+      syncCollectionToFirestore('supportTickets', data.supportTickets, oldDb.supportTickets, 'id'),
+      syncCollectionToFirestore('news', data.news, oldDb.news, 'id'),
+      syncCollectionToFirestore('supportChannels', data.supportChannels, oldDb.supportChannels, 'id'),
+      syncCollectionToFirestore('banners', data.banners, oldDb.banners, 'id')
+    ]);
 
-      if (JSON.stringify(data.settings) !== JSON.stringify(oldDb.settings)) {
-        await setDoc(doc(firestore, 'settings', 'system'), JSON.parse(JSON.stringify(data.settings)));
-      }
-    } catch (err) {
-      console.error('[BETEPRO] Async Firestore collection sync failed:', err);
+    if (JSON.stringify(data.settings) !== JSON.stringify(oldDb.settings)) {
+      await setDoc(doc(firestore, 'settings', 'system'), JSON.parse(JSON.stringify(data.settings)));
     }
-  })();
+  } catch (err) {
+    console.error('[BETEPRO] Async Firestore collection sync failed:', err);
+  }
 }
 
 // Function to update Match stats and score dynamically to simulate Live sports ticker!
