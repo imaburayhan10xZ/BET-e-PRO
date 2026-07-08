@@ -15,7 +15,10 @@ import {
   SupportChannel, BannerSlider
 } from '../src/types';
 
-const DATA_FILE = path.join(process.cwd(), 'data.json');
+const isVercel = process.env.VERCEL === '1';
+const DATA_FILE = isVercel 
+  ? path.join('/tmp', 'data.json') 
+  : path.join(process.cwd(), 'data.json');
 
 // VIP levels definition
 export const VIP_LEVELS = [
@@ -472,22 +475,70 @@ let isLoading = false;
 let loadPromise: Promise<DatabaseSchema> | null = null;
 let lastLoadTime = 0;
 
-const CONFIG_FILE = path.join(process.cwd(), 'firebase-applet-config.json');
 let dbInstance: any = null;
 
 export function getFirestoreDb() {
   if (!dbInstance) {
-    if (fs.existsSync(CONFIG_FILE)) {
+    let firebaseConfig: any = null;
+
+    // 1. Try to load from env variable FIREBASE_CONFIG (JSON string)
+    if (process.env.FIREBASE_CONFIG) {
       try {
-        const configRaw = fs.readFileSync(CONFIG_FILE, 'utf-8');
-        const firebaseConfig = JSON.parse(configRaw);
+        console.log('[BETEPRO] Found FIREBASE_CONFIG environment variable. Parsing...');
+        firebaseConfig = JSON.parse(process.env.FIREBASE_CONFIG);
+      } catch (err) {
+        console.error('Error parsing FIREBASE_CONFIG env variable:', err);
+      }
+    }
+
+    // 2. Try to load from individual env variables
+    if (!firebaseConfig && process.env.FIREBASE_PROJECT_ID) {
+      console.log('[BETEPRO] Found individual Firebase environment variables. Constructing config...');
+      firebaseConfig = {
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        appId: process.env.FIREBASE_APP_ID,
+        apiKey: process.env.FIREBASE_API_KEY,
+        authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+        firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID,
+        storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+        messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+      };
+    }
+
+    // 3. Try to load from firebase-applet-config.json (multiple paths)
+    if (!firebaseConfig) {
+      const pathsToTry = [
+        path.join(process.cwd(), 'firebase-applet-config.json'),
+        path.join(__dirname, 'firebase-applet-config.json'),
+        path.join(__dirname, '../firebase-applet-config.json'),
+        path.join(__dirname, '../../firebase-applet-config.json'),
+        '/var/task/firebase-applet-config.json'
+      ];
+
+      for (const p of pathsToTry) {
+        if (fs.existsSync(p)) {
+          try {
+            console.log('[BETEPRO] Loading Firebase config from file path:', p);
+            const configRaw = fs.readFileSync(p, 'utf-8');
+            firebaseConfig = JSON.parse(configRaw);
+            break;
+          } catch (err) {
+            console.error(`Error reading config from path ${p}:`, err);
+          }
+        }
+      }
+    }
+
+    if (firebaseConfig) {
+      try {
         const app = initializeApp(firebaseConfig);
         dbInstance = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+        console.log('[BETEPRO] Firebase initialized successfully with database:', firebaseConfig.firestoreDatabaseId || '(default)');
       } catch (err) {
         console.error('Error initializing Firebase in server/db:', err);
       }
     } else {
-      console.error('firebase-applet-config.json not found on disk at:', CONFIG_FILE);
+      console.error('[BETEPRO] firebase-applet-config.json not found on disk, and no Firebase environment variables are configured.');
     }
   }
   return dbInstance;
