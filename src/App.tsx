@@ -205,16 +205,27 @@ export default function App() {
     setAuthSuccess('');
 
     try {
-      // 1. Authenticate with Firebase Auth
-      const userCredential = await signInWithEmailAndPassword(firebaseAuth, email, password);
-      const fbUser = userCredential.user;
+      let res;
+      try {
+        // 1. Authenticate with Firebase Auth
+        const userCredential = await signInWithEmailAndPassword(firebaseAuth, email, password);
+        const fbUser = userCredential.user;
 
-      // 2. Sync with backend & obtain server JWT
-      const res = await fetch('/api/auth/firebase-sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: fbUser.email, uid: fbUser.uid })
-      });
+        // 2. Sync with backend & obtain server JWT
+        res = await fetch('/api/auth/firebase-sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: fbUser.email, uid: fbUser.uid })
+        });
+      } catch (fbErr: any) {
+        console.log('[AUTH] Firebase Auth failed, trying local DB authentication fallback:', fbErr.message);
+        // Fallback: Authenticate directly with local database (e.g. for admins/mods created via panel)
+        res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: email, password })
+        });
+      }
 
       const data = await res.json();
       if (res.ok) {
@@ -226,18 +237,12 @@ export default function App() {
         setPassword('');
         alert(`Welcome back, ${data.user.username}!`);
       } else {
-        setAuthError(data.error);
-        await signOut(firebaseAuth);
+        setAuthError(data.error || 'Invalid credentials or access denied.');
+        await signOut(firebaseAuth).catch(() => {});
       }
     } catch (err: any) {
       console.error(err);
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-        setAuthError('Invalid email or password.');
-      } else if (err.code === 'auth/invalid-email') {
-        setAuthError('Please enter a valid email address.');
-      } else {
-        setAuthError(err.message || 'Authentication failed.');
-      }
+      setAuthError(err.message || 'Authentication failed.');
     }
   };
 
@@ -247,21 +252,38 @@ export default function App() {
     setAuthSuccess('');
 
     try {
-      // 1. Register with Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
-      const fbUser = userCredential.user;
+      let res;
+      let fbUser: any = null;
+      try {
+        // 1. Register with Firebase Auth
+        const userCredential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
+        fbUser = userCredential.user;
 
-      // 2. Sync with backend to build profile
-      const res = await fetch('/api/auth/firebase-sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: fbUser.email,
-          uid: fbUser.uid,
-          username,
-          referralCode
-        })
-      });
+        // 2. Sync with backend to build profile
+        res = await fetch('/api/auth/firebase-sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: fbUser.email,
+            uid: fbUser.uid,
+            username,
+            referralCode
+          })
+        });
+      } catch (fbErr: any) {
+        console.log('[AUTH] Firebase Register failed, trying local DB fallback registration:', fbErr.message);
+        // Fallback: Register directly with our backend's secure registration API
+        res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username,
+            email,
+            password,
+            referralCode
+          })
+        });
+      }
 
       const data = await res.json();
       if (res.ok) {
@@ -275,9 +297,11 @@ export default function App() {
         setPassword('');
         setReferralCode('');
       } else {
-        setAuthError(data.error);
-        // Clean up firebase user if backend sync fails
-        await fbUser.delete();
+        setAuthError(data.error || 'Failed to register account.');
+        if (fbUser) {
+          // Clean up firebase user if backend sync fails
+          await fbUser.delete().catch(() => {});
+        }
       }
     } catch (err: any) {
       console.error(err);

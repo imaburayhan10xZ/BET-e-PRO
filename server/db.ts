@@ -705,15 +705,6 @@ export async function ensureDbLoaded(): Promise<DatabaseSchema> {
     
     const loadedCollections = new Set<string>();
 
-    const checkAllLoaded = () => {
-      if (keys.every(k => loadedCollections.has(k))) {
-        console.log('[BETEPRO] Direct Firestore bi-directional real-time sync active and fully loaded!');
-        isLoaded = true;
-        isLoading = false;
-        resolve(cachedDb!);
-      }
-    };
-
     const listCollections: { key: keyof DatabaseSchema; idKey: string }[] = [
       { key: 'users', idKey: 'id' },
       { key: 'matches', idKey: 'id' },
@@ -727,6 +718,43 @@ export async function ensureDbLoaded(): Promise<DatabaseSchema> {
       { key: 'supportChannels', idKey: 'id' },
       { key: 'banners', idKey: 'id' }
     ];
+
+    const checkAllLoaded = async () => {
+      if (keys.every(k => loadedCollections.has(k))) {
+        // Automatically seed if the database is completely empty (no users or matches present)
+        if (cachedDb!.users.length === 0 && cachedDb!.matches.length === 0) {
+          console.log('[BETEPRO] Firestore database is empty. Sync seeding default dataset now...');
+          try {
+            const defaultData = readLocalDb();
+            const seedPromises: Promise<any>[] = [];
+
+            listCollections.forEach(({ key, idKey }) => {
+              const list = defaultData[key] as any[];
+              list.forEach(item => {
+                const id = item[idKey];
+                if (id) {
+                  seedPromises.push(setDoc(doc(firestore, key, id), item));
+                }
+              });
+            });
+
+            seedPromises.push(setDoc(doc(firestore, 'settings', 'system'), defaultData.settings));
+            await Promise.all(seedPromises);
+            console.log('[BETEPRO] Successfully seeded Firestore with all collections and documents!');
+            
+            // Sync current cachedDb state with seeded data
+            Object.assign(cachedDb!, defaultData);
+          } catch (e) {
+            console.error('[BETEPRO] Error seeding Firestore on load:', e);
+          }
+        }
+
+        console.log('[BETEPRO] Direct Firestore bi-directional real-time sync active and fully loaded!');
+        isLoaded = true;
+        isLoading = false;
+        resolve(cachedDb!);
+      }
+    };
 
     listCollections.forEach(({ key, idKey }) => {
       onSnapshot(collection(firestore, key), (snapshot) => {
@@ -747,6 +775,7 @@ export async function ensureDbLoaded(): Promise<DatabaseSchema> {
 
         if (cachedDb) {
           cachedDb[key] = items as any;
+          writeLocalDb(cachedDb);
         }
         
         if (!loadedCollections.has(key)) {
@@ -766,12 +795,14 @@ export async function ensureDbLoaded(): Promise<DatabaseSchema> {
       if (docSnap.exists()) {
         if (cachedDb) {
           cachedDb.settings = docSnap.data() as SystemSettings;
+          writeLocalDb(cachedDb);
         }
       } else {
         console.log('[BETEPRO] Settings document not found in system. Seeding default...');
         setDoc(doc(firestore, 'settings', 'system'), DEFAULT_SETTINGS);
         if (cachedDb) {
           cachedDb.settings = DEFAULT_SETTINGS;
+          writeLocalDb(cachedDb);
         }
       }
 
@@ -787,40 +818,14 @@ export async function ensureDbLoaded(): Promise<DatabaseSchema> {
       }
     });
 
-    // Fallback seed timer (if collections are empty, we seed them)
+    // Fallback timer if Firestore takes too long to load
     setTimeout(async () => {
       if (!isLoaded) {
-        console.warn('[BETEPRO] Firestore initial fetch timed out or empty. Seeding local defaults...');
-        try {
-          const defaultData = readLocalDb();
-          const seedPromises: Promise<any>[] = [];
-
-          const usersSnap = await getDoc(doc(firestore, 'users', 'user_admin'));
-          if (!usersSnap.exists()) {
-            console.log('[BETEPRO] Seeding empty Firestore database with default dataset...');
-            
-            listCollections.forEach(({ key, idKey }) => {
-              const list = defaultData[key] as any[];
-              list.forEach(item => {
-                const id = item[idKey];
-                if (id) {
-                  seedPromises.push(setDoc(doc(firestore, key, id), item));
-                }
-              });
-            });
-
-            seedPromises.push(setDoc(doc(firestore, 'settings', 'system'), defaultData.settings));
-            await Promise.all(seedPromises);
-            console.log('[BETEPRO] Successfully seeded Firestore database with default values.');
-          }
-        } catch (e) {
-          console.error('[BETEPRO] Seeding error:', e);
-        }
-
+        console.warn('[BETEPRO] Firestore initial fetch timed out. Resolving cached/local defaults...');
         keys.forEach(k => loadedCollections.add(k));
         checkAllLoaded();
       }
-    }, 4000);
+    }, 5000);
   });
 
   return loadPromise;
@@ -834,7 +839,7 @@ export function readDb(): DatabaseSchema {
 }
 
 export function writeDb(data: DatabaseSchema): void {
-  const oldDb = JSON.parse(JSON.stringify(cachedDb || readLocalDb()));
+  const oldDb = readLocalDb();
   cachedDb = data;
   writeLocalDb(data);
 

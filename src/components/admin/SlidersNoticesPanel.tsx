@@ -28,6 +28,51 @@ export default function SlidersNoticesPanel() {
   // Status logs
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      setError('File size too large. Maximum 10MB allowed.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadstart = () => {
+      setIsUploading(true);
+      setError('');
+      setSuccess('');
+    };
+    reader.onload = async () => {
+      try {
+        const base64Str = reader.result as string;
+        const token = localStorage.getItem('token');
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ image: base64Str })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setImage(data.imageUrl);
+          setSuccess('Image uploaded to Cloudinary successfully!');
+        } else {
+          setError(data.error || 'Failed to upload image to Cloudinary.');
+        }
+      } catch (err: any) {
+        console.error('[UPLOAD_ERROR]', err);
+        setError('Network error uploading image.');
+      } finally {
+        setIsUploading(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const getHeaders = () => {
     const token = localStorage.getItem('token');
@@ -365,14 +410,39 @@ export default function SlidersNoticesPanel() {
                 <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1 font-mono">
                   {isImageOnly ? "Banner Image Link URL *" : "Image URL (Optional)"}
                 </label>
-                <input
-                  type="text"
-                  placeholder="e.g. https://domain.com/banner_image.png"
-                  value={image}
-                  onChange={e => setImage(e.target.value)}
-                  className="w-full bg-white text-xs border border-slate-200 rounded-lg p-2.5 outline-none focus:border-[#FF9F00]"
-                  required={isImageOnly}
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="e.g. https://domain.com/banner_image.png"
+                    value={image}
+                    onChange={e => setImage(e.target.value)}
+                    className="flex-1 bg-white text-xs border border-slate-200 rounded-lg p-2.5 outline-none focus:border-[#FF9F00]"
+                    required={isImageOnly}
+                  />
+                  <div className="relative">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                      disabled={isUploading}
+                    />
+                    <button
+                      type="button"
+                      disabled={isUploading}
+                      className="px-4 py-2.5 bg-slate-900 text-white text-xs font-bold rounded-lg hover:bg-slate-800 transition duration-150 flex items-center gap-1 font-mono h-full"
+                    >
+                      {isUploading ? (
+                        <>
+                          <Loader2 className="h-3 w-3 animate-spin text-[#FF9F00]" />
+                          UPLOADING...
+                        </>
+                      ) : (
+                        'UPLOAD IMAGE'
+                      )}
+                    </button>
+                  </div>
+                </div>
                 {isImageOnly && (
                   <p className="text-[10px] text-amber-600 font-mono mt-1">
                     * Make sure to provide a direct image link (JPEG/PNG/WebP/GIF). On the home screen carousel, it will fill the slide completely with no overlapping titles or descriptions.

@@ -11,6 +11,7 @@ import {
   hashPassword, generateSalt, VIP_LEVELS,
   DatabaseSchema, ensureDbLoaded
 } from './server/db';
+import { uploadToCloudinary } from './server/cloudinary';
 import { 
   signJwt, authenticateToken, requireAdmin, 
   requirePrimaryAdmin, requireTabAccess,
@@ -26,7 +27,8 @@ const PORT = 3000;
 
 export function createApp() {
   const app = express();
-  app.use(express.json());
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   // Database initialization middleware to load state from Firestore
   app.use(async (req, res, next) => {
@@ -101,7 +103,7 @@ export function createApp() {
   app.post('/api/auth/register', (req, res) => {
     const { username, email, phone, password, referralCode } = req.body;
 
-    if (!username || !email || !phone || !password) {
+    if (!username || !email || !password) {
       res.status(400).json({ error: 'Please enter all required fields.' });
       return;
     }
@@ -125,10 +127,12 @@ export function createApp() {
       return;
     }
 
-    const existingPhone = db.users.find(u => u.phone === phone);
-    if (existingPhone) {
-      res.status(400).json({ error: 'Phone number already registered.' });
-      return;
+    if (phone) {
+      const existingPhone = db.users.find(u => u.phone === phone);
+      if (existingPhone) {
+        res.status(400).json({ error: 'Phone number already registered.' });
+        return;
+      }
     }
 
     // Referral setup
@@ -148,11 +152,13 @@ export function createApp() {
     // Standard starting balance of ৳500 for high engagement
     const startBalance = referredBy ? 700 : 500; 
 
+    const finalPhone = phone || '017' + Math.floor(10000000 + Math.random() * 90000000);
+
     const newUser: DatabaseSchema['users'][0] = {
       id: userId,
       username,
       email,
-      phone,
+      phone: finalPhone,
       role: 'user',
       balance: startBalance,
       referralCode: userReferral,
@@ -2242,6 +2248,22 @@ export function createApp() {
     });
     writeDb(db);
     res.json({ success: true });
+  });
+
+  // Image Upload to Cloudinary Endpoint
+  app.post('/api/upload', authenticateToken, async (req: AuthenticatedRequest, res) => {
+    const { image } = req.body;
+    if (!image) {
+      res.status(400).json({ error: 'No image data provided.' });
+      return;
+    }
+    try {
+      const imageUrl = await uploadToCloudinary(image);
+      res.json({ imageUrl });
+    } catch (err: any) {
+      console.error('[UPLOAD ERROR]', err);
+      res.status(500).json({ error: err.message || 'Failed to upload image to Cloudinary.' });
+    }
   });
 
   // ==========================================
