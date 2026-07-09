@@ -53,7 +53,10 @@ export default function App() {
   
   // Auth state
   const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot' | null>(null);
+  const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
+  const [phone, setPhone] = useState('');
+  const [usernameOrPhone, setUsernameOrPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [referralCode, setReferralCode] = useState('');
@@ -207,27 +210,12 @@ export default function App() {
     setIsAuthLoading(true);
 
     try {
-      let res;
-      try {
-        // 1. Authenticate with Firebase Auth
-        const userCredential = await signInWithEmailAndPassword(firebaseAuth, email, password);
-        const fbUser = userCredential.user;
-
-        // 2. Sync with backend & obtain server JWT
-        res = await fetch('/api/auth/firebase-sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: fbUser.email, uid: fbUser.uid })
-        });
-      } catch (fbErr: any) {
-        console.log('[AUTH] Firebase Auth failed, trying local DB authentication fallback:', fbErr.message);
-        // Fallback: Authenticate directly with local database (e.g. for admins/mods created via panel)
-        res = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: email, password })
-        });
-      }
+      // Direct reliable server API call to /api/auth/login
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ usernameOrPhone, password })
+      });
 
       let data: any = {};
       const contentType = res.headers.get('content-type');
@@ -237,10 +225,7 @@ export default function App() {
         const textResponse = await res.text();
         console.error('[AUTH] Received non-JSON response during login:', textResponse);
         let errorSnippet = textResponse.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 150);
-        if (textResponse.includes('FUNCTION_INVOCATION_FAILED')) {
-          errorSnippet = 'Vercel Serverless Function Invocation Failed (please check server/db setup or logs).';
-        }
-        throw new Error(`Server connection issue (Status ${res.status}): ${errorSnippet || 'Please try again in 10 seconds.'}`);
+        throw new Error(`Server connection issue (Status ${res.status}): ${errorSnippet}`);
       }
 
       if (res.ok) {
@@ -248,12 +233,11 @@ export default function App() {
         setUser(data.user);
         setNotifications(data.notifications || []);
         setAuthMode(null);
-        setEmail('');
+        setUsernameOrPhone('');
         setPassword('');
         alert(`Welcome back, ${data.user.username}!`);
       } else {
         setAuthError(data.error || 'Invalid credentials or access denied.');
-        await signOut(firebaseAuth).catch(() => {});
       }
     } catch (err: any) {
       console.error(err);
@@ -270,38 +254,18 @@ export default function App() {
     setIsAuthLoading(true);
 
     try {
-      let res;
-      let fbUser: any = null;
-      try {
-        // 1. Register with Firebase Auth
-        const userCredential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
-        fbUser = userCredential.user;
-
-        // 2. Sync with backend to build profile
-        res = await fetch('/api/auth/firebase-sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: fbUser.email,
-            uid: fbUser.uid,
-            username,
-            referralCode
-          })
-        });
-      } catch (fbErr: any) {
-        console.log('[AUTH] Firebase Register failed, trying local DB fallback registration:', fbErr.message);
-        // Fallback: Register directly with our backend's secure registration API
-        res = await fetch('/api/auth/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            username,
-            email,
-            password,
-            referralCode
-          })
-        });
-      }
+      // Direct reliable server API call to /api/auth/register
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullName,
+          username,
+          phone,
+          password,
+          referralCode
+        })
+      });
 
       let data: any = {};
       const contentType = res.headers.get('content-type');
@@ -311,10 +275,7 @@ export default function App() {
         const textResponse = await res.text();
         console.error('[AUTH] Received non-JSON response during registration:', textResponse);
         let errorSnippet = textResponse.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 150);
-        if (textResponse.includes('FUNCTION_INVOCATION_FAILED')) {
-          errorSnippet = 'Vercel Serverless Function Invocation Failed (please check server/db setup or logs).';
-        }
-        throw new Error(`Server connection issue (Status ${res.status}): ${errorSnippet || 'Please try again in 10 seconds.'}`);
+        throw new Error(`Server connection issue (Status ${res.status}): ${errorSnippet}`);
       }
 
       if (res.ok) {
@@ -323,26 +284,17 @@ export default function App() {
         setNotifications(data.notifications || []);
         setAuthSuccess('Registration completed and logged in!');
         setAuthMode(null);
+        setFullName('');
         setUsername('');
-        setEmail('');
+        setPhone('');
         setPassword('');
         setReferralCode('');
       } else {
         setAuthError(data.error || 'Failed to register account.');
-        if (fbUser) {
-          // Clean up firebase user if backend sync fails
-          await fbUser.delete().catch(() => {});
-        }
       }
     } catch (err: any) {
       console.error(err);
-      if (err.code === 'auth/email-already-in-use') {
-        setAuthError('Email address already registered.');
-      } else if (err.code === 'auth/weak-password') {
-        setAuthError('Password must be at least 6 characters.');
-      } else {
-        setAuthError(err.message || 'Failed to register account.');
-      }
+      setAuthError(err.message || 'Failed to register account.');
     } finally {
       setIsAuthLoading(false);
     }
@@ -1001,42 +953,28 @@ export default function App() {
                         setAuthError('');
                         setAuthSuccess('');
                         try {
-                          // Authenticate using Firebase
-                          const userCredential = await signInWithEmailAndPassword(firebaseAuth, email, password);
-                          const fbUser = userCredential.user;
-
-                          // Sync profile with database
-                          const res = await fetch('/api/auth/firebase-sync', {
+                          // Direct reliable server API call to /api/auth/admin-login
+                          const res = await fetch('/api/auth/admin-login', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ email: fbUser.email, uid: fbUser.uid })
+                            body: JSON.stringify({ email, password })
                           });
 
                           const data = await res.json();
                           if (res.ok) {
-                            if (data.user.role === 'admin' || data.user.role === 'mod' || data.user.role === 'primary_admin') {
-                              localStorage.setItem('token', data.token);
-                              setUser(data.user);
-                              setNotifications(data.notifications || []);
-                              setAuthMode(null);
-                              setEmail('');
-                              setPassword('');
-                              alert('Admin authorization successful! Welcome to the Cockpit.');
-                            } else {
-                              setUser(data.user);
-                              setAuthError('Access denied. This profile does not have admin permissions.');
-                            }
+                            localStorage.setItem('token', data.token);
+                            setUser(data.user);
+                            setNotifications(data.notifications || []);
+                            setAuthMode(null);
+                            setEmail('');
+                            setPassword('');
+                            alert('Admin authorization successful! Welcome to the Cockpit.');
                           } else {
-                            setAuthError(data.error);
-                            await signOut(firebaseAuth);
+                            setAuthError(data.error || 'Invalid admin credentials or access denied.');
                           }
                         } catch (err: any) {
                           console.error(err);
-                          if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-                            setAuthError('Invalid admin email or password.');
-                          } else {
-                            setAuthError(err.message || 'Verification failed.');
-                          }
+                          setAuthError(err.message || 'Verification failed.');
                         }
                       }} 
                       className="space-y-4 text-xs"
@@ -1254,54 +1192,24 @@ export default function App() {
                 </motion.div>
               )}
 
-              {/* SOCIAL SIGN-IN BLOCK */}
-              {authMode !== 'forgot' && (
-                <div className="space-y-3">
-                  <button
-                    type="button"
-                    onClick={handleGoogleSignIn}
-                    disabled={isAuthLoading}
-                    className="w-full flex items-center justify-center space-x-3 rounded-2xl bg-white text-black py-3 text-xs font-black hover:bg-neutral-100 active:scale-95 transition-all duration-200 disabled:opacity-50 cursor-pointer shadow-lg"
-                  >
-                    <svg className="h-4 w-4 bg-white rounded-full p-0.5 shrink-0" viewBox="0 0 24 24" fill="none">
-                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05" />
-                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335" />
-                    </svg>
-                    <span>Connect Instantly with Google</span>
-                  </button>
 
-                  <div className="p-3 rounded-2xl bg-emerald-950/30 border border-emerald-900/30 text-[10px] leading-relaxed text-[#8daaa3] text-center font-medium">
-                    <span className="font-extrabold text-emerald-400">✨ Recommended Secure Path:</span>
-                    <p className="mt-0.5">One-click sign-up connects you directly via secure Google API. Fast, encrypted, and bypasses local login fields.</p>
-                  </div>
-
-                  <div className="relative flex items-center justify-center py-2">
-                    <div className="absolute inset-y-1/2 left-0 right-0 border-t border-[#0e4b3c]"></div>
-                    <span className="relative bg-[#02211a] px-3.5 text-[8px] font-black text-[#8daaa3] uppercase tracking-widest">
-                      or manual email system
-                    </span>
-                  </div>
-                </div>
-              )}
 
               {/* LOGIN VIEW */}
               {authMode === 'login' && (
                 <form onSubmit={handleLoginSubmit} className="space-y-4 text-xs text-slate-200">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-extrabold text-[#8daaa3] uppercase tracking-wider">
-                      Email or Username
+                      Username or Mobile Number
                     </label>
                     <div className="relative rounded-2xl bg-[#0a382e] border border-[#166453] focus-within:border-yellow-400 focus-within:bg-[#0e4c3f] transition-all duration-350 p-3 flex items-center gap-3 shadow-inner">
-                      <Mail className="h-4.5 w-4.5 text-yellow-400 shrink-0" />
+                      <Users className="h-4.5 w-4.5 text-yellow-400 shrink-0" />
                       <input
                         type="text"
                         required
                         disabled={isAuthLoading}
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="yourname@gmail.com or username"
+                        value={usernameOrPhone}
+                        onChange={(e) => setUsernameOrPhone(e.target.value)}
+                        placeholder="Enter username or mobile number"
                         className="w-full bg-transparent text-sm text-white font-bold placeholder-slate-400/60 focus:outline-none disabled:opacity-50"
                       />
                     </div>
@@ -1357,6 +1265,24 @@ export default function App() {
                 <form onSubmit={handleRegisterSubmit} className="space-y-4 text-xs text-slate-200">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-extrabold text-[#8daaa3] uppercase tracking-wider">
+                      Full Name
+                    </label>
+                    <div className="relative rounded-2xl bg-[#0a382e] border border-[#166453] focus-within:border-yellow-400 focus-within:bg-[#0e4c3f] transition-all duration-350 p-3 flex items-center gap-3 shadow-inner">
+                      <Star className="h-4.5 w-4.5 text-yellow-400 shrink-0" />
+                      <input
+                        type="text"
+                        required
+                        disabled={isAuthLoading}
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        placeholder="e.g. Sakib Rahman"
+                        className="w-full bg-transparent text-sm text-white font-bold placeholder-slate-400/60 focus:outline-none disabled:opacity-50"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-extrabold text-[#8daaa3] uppercase tracking-wider">
                       Username Handle
                     </label>
                     <div className="relative rounded-2xl bg-[#0a382e] border border-[#166453] focus-within:border-yellow-400 focus-within:bg-[#0e4c3f] transition-all duration-350 p-3 flex items-center gap-3 shadow-inner">
@@ -1375,17 +1301,17 @@ export default function App() {
 
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-extrabold text-[#8daaa3] uppercase tracking-wider">
-                      Email Address
+                      Mobile Number
                     </label>
                     <div className="relative rounded-2xl bg-[#0a382e] border border-[#166453] focus-within:border-yellow-400 focus-within:bg-[#0e4c3f] transition-all duration-350 p-3 flex items-center gap-3 shadow-inner">
-                      <Mail className="h-4.5 w-4.5 text-yellow-400 shrink-0" />
+                      <Phone className="h-4.5 w-4.5 text-yellow-400 shrink-0" />
                       <input
-                        type="email"
+                        type="text"
                         required
                         disabled={isAuthLoading}
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="sakib@gmail.com"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        placeholder="e.g. 01700000000"
                         className="w-full bg-transparent text-sm text-white font-bold placeholder-slate-400/60 focus:outline-none disabled:opacity-50"
                       />
                     </div>

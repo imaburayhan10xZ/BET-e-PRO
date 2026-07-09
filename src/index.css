@@ -80,9 +80,33 @@ body {
   animation-play-state: paused;
 }
 
-/* Ensure all input, select, textarea texts inherit colors, allowing tailwind to override */
+/* Ensure all input, select, textarea texts have a readable default color, 
+   while allowing explicit tailwind classes to override. */
 input, select, textarea {
-  color: inherit;
+  color: #0f172a; /* Default to dark slate text for light bg forms in user/admin panels */
+}
+
+/* If they are inside a dark theme container, or are on dark background, default to white text */
+.dark input, .dark select, .dark textarea,
+[class*="bg-[#0"], [class*="bg-slate-9"], [class*="bg-zinc-9"], [class*="bg-[#03"], [class*="bg-[#0a"] {
+  color: #ffffff;
+}
+
+/* Fallback to light text for dark green, dark slate, or transparent backgrounds, keeping registration, login, and gameplay fields clean */
+input[class*="bg-transparent"], 
+select[class*="bg-transparent"], 
+textarea[class*="bg-transparent"],
+input[class*="bg-[#"], 
+select[class*="bg-[#"], 
+textarea[class*="bg-[#"],
+input[class*="bg-slate-900"],
+select[class*="bg-slate-900"] {
+  color: #ffffff;
+}
+
+/* IMPORTANT: If a Tailwind text color utility class is present on the input/select/textarea, let it override anything! */
+input[class*="text-"], select[class*="text-"], textarea[class*="text-"] {
+  color: currentColor !important;
 }
 
 /* Chrome/Safari Autofill Styles to prevent black text or ugly backgrounds on dark fields */

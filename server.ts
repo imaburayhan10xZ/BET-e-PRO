@@ -101,9 +101,9 @@ export function createApp() {
   // User registration
   app.post('/api/auth/register', async (req, res) => {
     try {
-      const { username, email, phone, password, referralCode } = req.body;
+      const { fullName, username, phone, password, referralCode } = req.body;
 
-      if (!username || !email || !password) {
+      if (!fullName || !username || !phone || !password) {
         res.status(400).json({ error: 'Please enter all required fields.' });
         return;
       }
@@ -120,19 +120,18 @@ export function createApp() {
 
       const db = readDb();
 
-      // Check existing
-      const existingUser = db.users.find(u => u.username.toLowerCase() === username.toLowerCase() || u.email.toLowerCase() === email.toLowerCase());
-      if (existingUser) {
-        res.status(400).json({ error: 'Username or email already exists.' });
+      // Check unique username (case-insensitive)
+      const existingUsername = db.users.find(u => u.username.toLowerCase() === username.toLowerCase());
+      if (existingUsername) {
+        res.status(400).json({ error: 'Username is already taken. Please choose another.' });
         return;
       }
 
-      if (phone) {
-        const existingPhone = db.users.find(u => u.phone === phone);
-        if (existingPhone) {
-          res.status(400).json({ error: 'Phone number already registered.' });
-          return;
-        }
+      // Check unique phone number
+      const existingPhone = db.users.find(u => u.phone === phone);
+      if (existingPhone) {
+        res.status(400).json({ error: 'Phone number is already registered.' });
+        return;
       }
 
       // Referral setup
@@ -152,13 +151,11 @@ export function createApp() {
       // Standard starting balance of ৳500 for high engagement
       const startBalance = referredBy ? 700 : 500; 
 
-      const finalPhone = phone || '017' + Math.floor(10000000 + Math.random() * 90000000);
-
       const newUser: DatabaseSchema['users'][0] = {
         id: userId,
         username,
-        email,
-        phone: finalPhone,
+        email: `${username}@betepro.com`, // Auto-generated dummy email
+        phone,
         role: 'user',
         balance: startBalance,
         referralCode: userReferral,
@@ -166,7 +163,7 @@ export function createApp() {
         vipLevel: 0,
         vipPoints: 0,
         isBlocked: false,
-        fullName: username,
+        fullName,
         createdAt: new Date().toISOString(),
         passwordHash,
         salt
@@ -179,7 +176,7 @@ export function createApp() {
         id: 'notif_' + Math.random().toString(36).substr(2, 9),
         userId: userId,
         title: '🎁 Welcome to BETEPRO!',
-        message: `Thanks for joining us, ${username}! We have credited a promotional ৳${startBalance} to your wallet. Dive into live sports betting and casino games!`,
+        message: `Thanks for joining us, ${fullName}! We have credited a promotional ৳${startBalance} to your wallet. Dive into live sports betting and casino games!`,
         read: false,
         createdAt: new Date().toISOString()
       });
@@ -203,7 +200,7 @@ export function createApp() {
             id: 'notif_' + Math.random().toString(36).substr(2, 9),
             userId: referrer.id,
             title: '👥 Referral Bonus Credited!',
-            message: `Your friend ${username} registered using your link. ৳200 referral bonus was added to your wallet!`,
+            message: `Your friend ${fullName} registered using your link. ৳200 referral bonus was added to your wallet!`,
             read: false,
             createdAt: new Date().toISOString()
           });
@@ -219,14 +216,14 @@ export function createApp() {
         user: {
           id: userId,
           username,
-          email,
+          email: newUser.email,
           phone,
           role: 'user',
           balance: startBalance,
           referralCode: userReferral,
           vipLevel: 0,
           vipPoints: 0,
-          fullName: username,
+          fullName,
           createdAt: newUser.createdAt
         }
       });
@@ -239,18 +236,27 @@ export function createApp() {
   // User login
   app.post('/api/auth/login', async (req, res) => {
     try {
-      const { username, password } = req.body;
+      const { usernameOrPhone, password } = req.body;
 
-      if (!username || !password) {
+      if (!usernameOrPhone || !password) {
         res.status(400).json({ error: 'Please enter all fields.' });
         return;
       }
 
       const db = readDb();
-      const user = db.users.find(u => u.username.toLowerCase() === username.toLowerCase() || u.email.toLowerCase() === username.toLowerCase());
+      // Search by username OR by phone number
+      const user = db.users.find(u => 
+        u.username.toLowerCase() === usernameOrPhone.toLowerCase() || 
+        u.phone === usernameOrPhone
+      );
 
       if (!user) {
-        res.status(400).json({ error: 'Invalid username/email or password.' });
+        res.status(400).json({ error: 'Invalid username/phone number or password.' });
+        return;
+      }
+
+      if (user.role !== 'user') {
+        res.status(403).json({ error: 'Please use the admin login portal for administrative accounts.' });
         return;
       }
 
@@ -261,7 +267,7 @@ export function createApp() {
 
       const hash = hashPassword(password, user.salt);
       if (hash !== user.passwordHash) {
-        res.status(400).json({ error: 'Invalid username/email or password.' });
+        res.status(400).json({ error: 'Invalid username/phone number or password.' });
         return;
       }
 
@@ -288,6 +294,66 @@ export function createApp() {
     } catch (err: any) {
       console.error('[AUTH] Login error:', err);
       res.status(500).json({ error: err.message || 'An internal server error occurred during login.' });
+    }
+  });
+
+  // Admin login endpoint (completely separate from user login)
+  app.post('/api/auth/admin-login', async (req, res) => {
+    try {
+      const { email, password } = req.body;
+
+      if (!email || !password) {
+        res.status(400).json({ error: 'Please enter all fields.' });
+        return;
+      }
+
+      const db = readDb();
+      const user = db.users.find(u => u.username.toLowerCase() === email.toLowerCase() || u.email.toLowerCase() === email.toLowerCase());
+
+      if (!user) {
+        res.status(400).json({ error: 'Invalid admin credentials.' });
+        return;
+      }
+
+      if (user.role !== 'admin' && user.role !== 'mod' && user.role !== 'primary_admin') {
+        res.status(403).json({ error: 'Access denied. You do not have administrator permissions.' });
+        return;
+      }
+
+      if (user.isBlocked) {
+        res.status(403).json({ error: 'This account has been suspended.' });
+        return;
+      }
+
+      const hash = hashPassword(password, user.salt);
+      if (hash !== user.passwordHash) {
+        res.status(400).json({ error: 'Invalid admin credentials.' });
+        return;
+      }
+
+      const token = signJwt({ id: user.id, role: user.role });
+
+      res.json({
+        token,
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          phone: user.phone,
+          role: user.role,
+          balance: user.balance,
+          referralCode: user.referralCode,
+          referredBy: user.referredBy,
+          vipLevel: user.vipLevel,
+          vipPoints: user.vipPoints,
+          avatarUrl: user.avatarUrl,
+          fullName: user.fullName,
+          createdAt: user.createdAt
+        }
+      });
+    } catch (err: any) {
+      console.error('[AUTH] Admin login error:', err);
+      res.status(500).json({ error: err.message || 'An internal server error occurred.' });
     }
   });
 
