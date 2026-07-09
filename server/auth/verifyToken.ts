@@ -1,4 +1,4 @@
-import { getFirebaseConfig } from './firebase';
+import { getFirebaseConfig } from './firebase.js';
 
 export interface VerifiedTokenUser {
   uid: string;

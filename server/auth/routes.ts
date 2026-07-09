@@ -1,8 +1,8 @@
 import { Router, Response } from 'express';
-import { ensureDbLoaded, readDb, writeDb } from '../db';
-import { verifyFirebaseIdToken } from './verifyToken';
-import { authenticateToken, AuthenticatedRequest } from './authMiddleware';
-import { getFirebaseConfig } from './firebase';
+import { ensureDbLoaded, readDb, writeDb } from '../db.js';
+import { verifyFirebaseIdToken } from './verifyToken.js';
+import { authenticateToken, AuthenticatedRequest } from './authMiddleware.js';
+import { getFirebaseConfig } from './firebase.js';
 
 const router = Router();
 

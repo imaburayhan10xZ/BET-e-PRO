@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { ensureDbLoaded, readDb } from '../db';
-import { verifyFirebaseIdToken } from './verifyToken';
+import { ensureDbLoaded, readDb } from '../db.js';
+import { verifyFirebaseIdToken } from './verifyToken.js';
 import { User } from '../../src/types';
 
 export interface AuthenticatedRequest extends Request {

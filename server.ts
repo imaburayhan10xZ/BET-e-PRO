@@ -9,14 +9,14 @@ import {
   readDb, writeDb, tickLiveScores, 
   hashPassword, generateSalt, VIP_LEVELS,
   DatabaseSchema, ensureDbLoaded
-} from './server/db';
-import { uploadToCloudinary } from './server/cloudinary';
+} from './server/db.js';
+import { uploadToCloudinary } from './server/cloudinary.js';
 import { 
   signJwt, authenticateToken, requireAdmin, 
   requirePrimaryAdmin, requireTabAccess,
   AuthenticatedRequest 
-} from './server/auth';
-import authRouter from './server/auth/routes';
+} from './server/auth.js';
+import authRouter from './server/auth/routes.js';
 import { 
   User, Match, Prediction, Transaction, 
   Promotion, Notification, LeaderboardEntry, 

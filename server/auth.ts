@@ -11,8 +11,8 @@ export interface AuthenticatedRequest extends Request {
 }
 
 // Re-export new modularised middleware to preserve backwards-compatibility across the app
-export { authenticateToken } from './auth/authMiddleware';
-export { requireAdmin, requirePrimaryAdmin, requireTabAccess } from './auth/adminMiddleware';
+export { authenticateToken } from './auth/authMiddleware.js';
+export { requireAdmin, requirePrimaryAdmin, requireTabAccess } from './auth/adminMiddleware.js';
 
 // Placeholder signJwt for compat in case any old routes still try to import it, though unused in the new system
 export function signJwt(payload: any): string {

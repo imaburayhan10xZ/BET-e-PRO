@@ -1,6 +1,6 @@
 import { Response, NextFunction } from 'express';
-import { AuthenticatedRequest } from './authMiddleware';
-import { readDb } from '../db';
+import { AuthenticatedRequest } from './authMiddleware.js';
+import { readDb } from '../db.js';
 
 /**
  * Middleware to authorize any admin role (admin, primary_admin, mod).
