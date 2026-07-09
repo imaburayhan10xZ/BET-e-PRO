@@ -509,10 +509,8 @@ export function getFirestoreDb() {
     if (!firebaseConfig) {
       const pathsToTry = [
         path.join(process.cwd(), 'firebase-applet-config.json'),
-        path.join(__dirname, 'firebase-applet-config.json'),
-        path.join(__dirname, '../firebase-applet-config.json'),
-        path.join(__dirname, '../../firebase-applet-config.json'),
-        '/var/task/firebase-applet-config.json'
+        '/var/task/firebase-applet-config.json',
+        'firebase-applet-config.json'
       ];
 
       for (const p of pathsToTry) {
@@ -527,6 +525,20 @@ export function getFirestoreDb() {
           }
         }
       }
+    }
+
+    // 4. Solid hardcoded fallback for Vercel environment where JSON may not be copied
+    if (!firebaseConfig) {
+      console.log('[BETEPRO] Using hardcoded fallback Firebase config for production routing...');
+      firebaseConfig = {
+        apiKey: "AIzaSyDUmN8a_aMiRL5tnZqlVA2ySoPOxX-Gtzk",
+        authDomain: "caramel-poet-vgxqk.firebaseapp.com",
+        projectId: "caramel-poet-vgxqk",
+        storageBucket: "caramel-poet-vgxqk.firebasestorage.app",
+        messagingSenderId: "858474249110",
+        appId: "1:858474249110:web:ef9c60b0d204af3a963bb7",
+        firestoreDatabaseId: "ai-studio-betepro-b6a3f733-91bd-405a-80ee-cc6e3903d102"
+      };
     }
 
     if (firebaseConfig) {
