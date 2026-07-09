@@ -531,20 +531,25 @@ export function getFirestoreDb() {
     if (!firebaseConfig) {
       console.log('[BETEPRO] Using hardcoded fallback Firebase config for production routing...');
       firebaseConfig = {
-        apiKey: "AIzaSyDUmN8a_aMiRL5tnZqlVA2ySoPOxX-Gtzk",
-        authDomain: "caramel-poet-vgxqk.firebaseapp.com",
-        projectId: "caramel-poet-vgxqk",
-        storageBucket: "caramel-poet-vgxqk.firebasestorage.app",
-        messagingSenderId: "858474249110",
-        appId: "1:858474249110:web:ef9c60b0d204af3a963bb7",
-        firestoreDatabaseId: "ai-studio-betepro-b6a3f733-91bd-405a-80ee-cc6e3903d102"
+        apiKey: "AIzaSyAz7gdV4Vr1rSVpr125PQTWNirQK8MnM4c",
+        authDomain: "beteproodb.firebaseapp.com",
+        databaseURL: "https://beteproodb-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "beteproodb",
+        storageBucket: "beteproodb.firebasestorage.app",
+        messagingSenderId: "115750551989",
+        appId: "1:115750551989:web:b1a88d15c412524ada59fc",
+        measurementId: "G-MJ9HMS5THX",
+        firestoreDatabaseId: "(default)"
       };
     }
 
     if (firebaseConfig) {
       try {
         const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-        dbInstance = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+        const dbId = firebaseConfig.firestoreDatabaseId;
+        dbInstance = (dbId && dbId !== 'default' && dbId !== '(default)')
+          ? getFirestore(app, dbId)
+          : getFirestore(app);
         console.log('[BETEPRO] Firebase initialized successfully with database:', firebaseConfig.firestoreDatabaseId || '(default)');
       } catch (err) {
         console.error('Error initializing Firebase in server/db:', err);
@@ -797,7 +802,7 @@ export async function ensureDbLoaded(reqPath?: string): Promise<DatabaseSchema> 
     try {
       const systemDoc = await withTimeout(
         getDoc(doc(firestore, 'settings', 'system')),
-        1500,
+        15000,
         'Firestore settings fetch timed out'
       );
       if (systemDoc.exists()) {
@@ -806,7 +811,7 @@ export async function ensureDbLoaded(reqPath?: string): Promise<DatabaseSchema> 
         console.log('[BETEPRO] Settings document not found in system. Seeding default...');
         await withTimeout(
           setDoc(doc(firestore, 'settings', 'system'), DEFAULT_SETTINGS),
-          1500,
+          15000,
           'Firestore settings seed timed out'
         );
         cachedDb.settings = DEFAULT_SETTINGS;
@@ -871,7 +876,7 @@ export async function ensureDbLoaded(reqPath?: string): Promise<DatabaseSchema> 
           }
         })
       ),
-      2500,
+      25000,
       'Firestore parallel lazy load timed out'
     );
   } catch (err) {
@@ -931,7 +936,7 @@ export async function writeDb(data: DatabaseSchema): Promise<void> {
     if (promises.length > 0) {
       await withTimeout(
         Promise.all(promises),
-        3000,
+        15000,
         'Firestore writeDb collection sync timed out'
       );
     }

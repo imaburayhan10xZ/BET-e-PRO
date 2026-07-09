@@ -80,9 +80,20 @@ body {
   animation-play-state: paused;
 }
 
-/* Ensure all input, select, textarea texts are dark on white/light panels by default */
+/* Ensure all input, select, textarea texts inherit colors, allowing tailwind to override */
 input, select, textarea {
-  color: #0f172a;
+  color: inherit;
+}
+
+/* Chrome/Safari Autofill Styles to prevent black text or ugly backgrounds on dark fields */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active {
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: #ffffff !important;
+  transition: background-color 5000s ease-in-out 0s;
+  caret-color: white;
 }
 
 /* Ensure glass inputs on dark pages have light text */

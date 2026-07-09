@@ -1293,8 +1293,8 @@ export default function App() {
                     <label className="text-[10px] font-extrabold text-[#8daaa3] uppercase tracking-wider">
                       Email or Username
                     </label>
-                    <div className="relative rounded-2xl bg-[#011410] border border-[#0e4b3c] focus-within:border-yellow-400/80 focus-within:bg-[#02211a] transition-all duration-300 p-3 flex items-center gap-3">
-                      <Mail className="h-4 w-4 text-yellow-400/80 shrink-0" />
+                    <div className="relative rounded-2xl bg-[#0a382e] border border-[#166453] focus-within:border-yellow-400 focus-within:bg-[#0e4c3f] transition-all duration-350 p-3 flex items-center gap-3 shadow-inner">
+                      <Mail className="h-4.5 w-4.5 text-yellow-400 shrink-0" />
                       <input
                         type="text"
                         required
@@ -1302,7 +1302,7 @@ export default function App() {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="yourname@gmail.com or username"
-                        className="w-full bg-transparent text-sm text-white font-medium placeholder-slate-400/40 focus:outline-none disabled:opacity-50"
+                        className="w-full bg-transparent text-sm text-white font-bold placeholder-slate-400/60 focus:outline-none disabled:opacity-50"
                       />
                     </div>
                   </div>
@@ -1316,13 +1316,13 @@ export default function App() {
                         type="button" 
                         disabled={isAuthLoading} 
                         onClick={() => setAuthMode('forgot')} 
-                        className="text-[9px] font-black text-yellow-400 uppercase tracking-wider hover:underline disabled:opacity-50"
+                        className="text-[9px] font-black text-yellow-400 uppercase tracking-wider hover:underline disabled:opacity-50 cursor-pointer"
                       >
                         Forgot Pass?
                       </button>
                     </div>
-                    <div className="relative rounded-2xl bg-[#011410] border border-[#0e4b3c] focus-within:border-yellow-400/80 focus-within:bg-[#02211a] transition-all duration-300 p-3 flex items-center gap-3">
-                      <ShieldCheck className="h-4 w-4 text-yellow-400/80 shrink-0" />
+                    <div className="relative rounded-2xl bg-[#0a382e] border border-[#166453] focus-within:border-yellow-400 focus-within:bg-[#0e4c3f] transition-all duration-350 p-3 flex items-center gap-3 shadow-inner">
+                      <ShieldCheck className="h-4.5 w-4.5 text-yellow-400 shrink-0" />
                       <input
                         type="password"
                         required
@@ -1330,7 +1330,7 @@ export default function App() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••"
-                        className="w-full bg-transparent text-sm text-white font-medium placeholder-slate-400/40 focus:outline-none disabled:opacity-50"
+                        className="w-full bg-transparent text-sm text-white font-bold placeholder-slate-400/60 focus:outline-none disabled:opacity-50"
                       />
                     </div>
                   </div>
@@ -1359,8 +1359,8 @@ export default function App() {
                     <label className="text-[10px] font-extrabold text-[#8daaa3] uppercase tracking-wider">
                       Username Handle
                     </label>
-                    <div className="relative rounded-2xl bg-[#011410] border border-[#0e4b3c] focus-within:border-yellow-400/80 focus-within:bg-[#02211a] transition-all duration-300 p-3 flex items-center gap-3">
-                      <Users className="h-4 w-4 text-yellow-400/80 shrink-0" />
+                    <div className="relative rounded-2xl bg-[#0a382e] border border-[#166453] focus-within:border-yellow-400 focus-within:bg-[#0e4c3f] transition-all duration-350 p-3 flex items-center gap-3 shadow-inner">
+                      <Users className="h-4.5 w-4.5 text-yellow-400 shrink-0" />
                       <input
                         type="text"
                         required
@@ -1368,7 +1368,7 @@ export default function App() {
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
                         placeholder="e.g. sakib_boss"
-                        className="w-full bg-transparent text-sm text-white font-medium placeholder-slate-400/40 focus:outline-none disabled:opacity-50"
+                        className="w-full bg-transparent text-sm text-white font-bold placeholder-slate-400/60 focus:outline-none disabled:opacity-50"
                       />
                     </div>
                   </div>
@@ -1377,8 +1377,8 @@ export default function App() {
                     <label className="text-[10px] font-extrabold text-[#8daaa3] uppercase tracking-wider">
                       Email Address
                     </label>
-                    <div className="relative rounded-2xl bg-[#011410] border border-[#0e4b3c] focus-within:border-yellow-400/80 focus-within:bg-[#02211a] transition-all duration-300 p-3 flex items-center gap-3">
-                      <Mail className="h-4 w-4 text-yellow-400/80 shrink-0" />
+                    <div className="relative rounded-2xl bg-[#0a382e] border border-[#166453] focus-within:border-yellow-400 focus-within:bg-[#0e4c3f] transition-all duration-350 p-3 flex items-center gap-3 shadow-inner">
+                      <Mail className="h-4.5 w-4.5 text-yellow-400 shrink-0" />
                       <input
                         type="email"
                         required
@@ -1386,7 +1386,7 @@ export default function App() {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="sakib@gmail.com"
-                        className="w-full bg-transparent text-sm text-white font-medium placeholder-slate-400/40 focus:outline-none disabled:opacity-50"
+                        className="w-full bg-transparent text-sm text-white font-bold placeholder-slate-400/60 focus:outline-none disabled:opacity-50"
                       />
                     </div>
                   </div>
@@ -1395,8 +1395,8 @@ export default function App() {
                     <label className="text-[10px] font-extrabold text-[#8daaa3] uppercase tracking-wider">
                       Choose Password
                     </label>
-                    <div className="relative rounded-2xl bg-[#011410] border border-[#0e4b3c] focus-within:border-yellow-400/80 focus-within:bg-[#02211a] transition-all duration-300 p-3 flex items-center gap-3">
-                      <ShieldCheck className="h-4 w-4 text-yellow-400/80 shrink-0" />
+                    <div className="relative rounded-2xl bg-[#0a382e] border border-[#166453] focus-within:border-yellow-400 focus-within:bg-[#0e4c3f] transition-all duration-350 p-3 flex items-center gap-3 shadow-inner">
+                      <ShieldCheck className="h-4.5 w-4.5 text-yellow-400 shrink-0" />
                       <input
                         type="password"
                         required
@@ -1404,7 +1404,7 @@ export default function App() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••"
-                        className="w-full bg-transparent text-sm text-white font-medium placeholder-slate-400/40 focus:outline-none disabled:opacity-50"
+                        className="w-full bg-transparent text-sm text-white font-bold placeholder-slate-400/60 focus:outline-none disabled:opacity-50"
                       />
                     </div>
                   </div>
@@ -1413,15 +1413,15 @@ export default function App() {
                     <label className="text-[10px] font-extrabold text-yellow-400/90 uppercase tracking-wider flex items-center gap-1">
                       <Sparkles className="h-3.5 w-3.5" /> Invite Referral Code (Optional)
                     </label>
-                    <div className="relative rounded-2xl bg-[#011410] border border-yellow-400/20 focus-within:border-yellow-400 focus-within:bg-[#02211a] transition-all duration-300 p-3 flex items-center gap-3">
-                      <Flame className="h-4 w-4 text-yellow-400 shrink-0 animate-pulse" />
+                    <div className="relative rounded-2xl bg-[#0a382e] border border-yellow-400/40 focus-within:border-yellow-400 focus-within:bg-[#0e4c3f] transition-all duration-350 p-3 flex items-center gap-3 shadow-inner">
+                      <Flame className="h-4.5 w-4.5 text-yellow-400 shrink-0 animate-pulse" />
                       <input
                         type="text"
                         disabled={isAuthLoading}
                         value={referralCode}
                         onChange={(e) => setReferralCode(e.target.value)}
                         placeholder="Enter code to get welcome bonus"
-                        className="w-full bg-transparent text-sm text-yellow-400 font-bold uppercase placeholder-slate-400/30 focus:outline-none disabled:opacity-50"
+                        className="w-full bg-transparent text-sm text-yellow-400 font-black uppercase placeholder-yellow-400/40 focus:outline-none disabled:opacity-50"
                       />
                     </div>
                   </div>
@@ -1450,14 +1450,14 @@ export default function App() {
                     <label className="text-[10px] font-extrabold text-[#8daaa3] uppercase tracking-wider">
                       Email Address
                     </label>
-                    <div className="relative rounded-2xl bg-[#011410] border border-[#0e4b3c] focus-within:border-yellow-400 focus-within:bg-[#02211a] transition-all duration-300 p-3 flex items-center gap-3">
-                      <Mail className="h-4 w-4 text-yellow-400/80 shrink-0" />
+                    <div className="relative rounded-2xl bg-[#0a382e] border border-[#166453] focus-within:border-yellow-400 focus-within:bg-[#0e4c3f] transition-all duration-350 p-3 flex items-center gap-3 shadow-inner">
+                      <Mail className="h-4.5 w-4.5 text-yellow-400 shrink-0" />
                       <input
                         type="email"
                         required
                         disabled={isAuthLoading}
                         placeholder="yourname@gmail.com"
-                        className="w-full bg-transparent text-sm text-white font-medium placeholder-slate-400/40 focus:outline-none disabled:opacity-50"
+                        className="w-full bg-transparent text-sm text-white font-bold placeholder-slate-400/60 focus:outline-none disabled:opacity-50"
                       />
                     </div>
                   </div>
