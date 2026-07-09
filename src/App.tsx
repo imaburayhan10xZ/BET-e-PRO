@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Trophy, Flame, Bell, Globe, Sparkles, Star, Users, Phone, ShieldCheck, 
-  HelpCircle, ChevronDown, CheckCircle2, AlertCircle, Play, ArrowRight, Wallet, Info, Mail
+  HelpCircle, ChevronDown, CheckCircle2, AlertCircle, Play, ArrowRight, Wallet, Info, Mail, X
 } from 'lucide-react';
 import { User, Notification, Match, Promotion } from './types';
 import { translations, Language } from './utils/lang';
@@ -227,7 +227,16 @@ export default function App() {
         });
       }
 
-      const data = await res.json();
+      let data: any = {};
+      const contentType = res.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const textResponse = await res.text();
+        console.error('[AUTH] Received non-JSON response during login:', textResponse);
+        throw new Error('Our backend services are initializing or undergoing maintenance. Please wait 10 seconds and try again.');
+      }
+
       if (res.ok) {
         localStorage.setItem('token', data.token);
         setUser(data.user);
@@ -285,7 +294,16 @@ export default function App() {
         });
       }
 
-      const data = await res.json();
+      let data: any = {};
+      const contentType = res.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const textResponse = await res.text();
+        console.error('[AUTH] Received non-JSON response during registration:', textResponse);
+        throw new Error('Our backend services are initializing or undergoing maintenance. Please wait 10 seconds and try again.');
+      }
+
       if (res.ok) {
         localStorage.setItem('token', data.token);
         setUser(data.user);
@@ -347,7 +365,16 @@ export default function App() {
         })
       });
 
-      const data = await res.json();
+      let data: any = {};
+      const contentType = res.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const textResponse = await res.text();
+        console.error('[AUTH] Received non-JSON response during Google Sign-In sync:', textResponse);
+        throw new Error('Our backend services are initializing or undergoing maintenance. Please wait 10 seconds and try again.');
+      }
+
       if (res.ok) {
         localStorage.setItem('token', data.token);
         setUser(data.user);
@@ -1036,54 +1063,56 @@ export default function App() {
       </main>
 
       {/* FOOTER LAYOUT COMPLIANCE BAR */}
-      <footer className="border-t border-[#0e4b3c] bg-[#031e17] py-10 px-4 mt-16 text-xs text-[#8daaa3] shadow-inner">
-        <div className="max-w-7xl w-full mx-auto grid grid-cols-1 md:grid-cols-4 gap-8">
-          
-          <div className="space-y-3.5">
-            <div className="flex items-center space-x-2">
-              <span className="shiny-logo-text text-xl">BETEPRO.COM</span>
+      {currentTab === 'home' && (
+        <footer className="border-t border-[#0e4b3c] bg-[#031e17] py-10 px-4 mt-16 text-xs text-[#8daaa3] shadow-inner">
+          <div className="max-w-7xl w-full mx-auto grid grid-cols-1 md:grid-cols-4 gap-8">
+            
+            <div className="space-y-3.5">
+              <div className="flex items-center space-x-2">
+                <span className="shiny-logo-text text-xl">BETEPRO.COM</span>
+              </div>
+              <p className="leading-relaxed text-[#8daaa3]">
+                Premium simulated sports predictions and slots gaming platform designed for ultimate performance and fast local loading in Bangladesh.
+              </p>
             </div>
-            <p className="leading-relaxed text-[#8daaa3]">
-              Premium simulated sports predictions and slots gaming platform designed for ultimate performance and fast local loading in Bangladesh.
-            </p>
+
+            <div className="space-y-3">
+              <h4 className="font-extrabold text-white uppercase text-[10px] tracking-wider">Compliance Disclosures</h4>
+              <ul className="space-y-1.5 leading-relaxed text-[#8daaa3]">
+                <li>• Entertainment simulation node.</li>
+                <li>• Simulated wagering algorithms.</li>
+                <li>• Secure virtual ledger accounts.</li>
+                <li>• Certified RNG outcomes.</li>
+              </ul>
+            </div>
+
+            <div className="space-y-3">
+              <h4 className="font-extrabold text-white uppercase text-[10px] tracking-wider">Customer Care Support</h4>
+              <div className="space-y-1.5">
+                <div className="flex items-center space-x-2"><Mail className="h-4 w-4 text-yellow-400" /> <span className="text-white">support@betepro.com</span></div>
+                <div className="flex items-center space-x-2"><Phone className="h-4 w-4 text-yellow-400" /> <span className="text-white">+880 171-BETEPRO</span></div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <h4 className="font-extrabold text-white uppercase text-[10px] tracking-wider">License & Security</h4>
+              <p className="leading-normal text-[#8daaa3]">
+                BETEPRO processes transfers via secure simulated bKash Nagad gateways. Currencies mapped 1:1 with BDT virtual credits.
+              </p>
+            </div>
+
           </div>
 
-          <div className="space-y-3">
-            <h4 className="font-extrabold text-white uppercase text-[10px] tracking-wider">Compliance Disclosures</h4>
-            <ul className="space-y-1.5 leading-relaxed text-[#8daaa3]">
-              <li>• Entertainment simulation node.</li>
-              <li>• Simulated wagering algorithms.</li>
-              <li>• Secure virtual ledger accounts.</li>
-              <li>• Certified RNG outcomes.</li>
-            </ul>
-          </div>
-
-          <div className="space-y-3">
-            <h4 className="font-extrabold text-white uppercase text-[10px] tracking-wider">Customer Care Support</h4>
-            <div className="space-y-1.5">
-              <div className="flex items-center space-x-2"><Mail className="h-4 w-4 text-yellow-400" /> <span className="text-white">support@betepro.com</span></div>
-              <div className="flex items-center space-x-2"><Phone className="h-4 w-4 text-yellow-400" /> <span className="text-white">+880 171-BETEPRO</span></div>
+          <div className="max-w-7xl w-full mx-auto border-t border-[#0e4b3c] pt-6 mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-center">
+            <p>© 2026 BETEPRO Systems Inc. All simulated rights reserved.</p>
+            <div className="flex space-x-4 text-[#8daaa3]">
+              <a href="#terms" onClick={(e) => { e.preventDefault(); alert('Terms of Service: This simulated betting web-app uses demo virtual credit points. No real physical currencies can be deposited or gained.'); }} className="hover:text-white transition">Terms & Conditions</a>
+              <span>•</span>
+              <a href="#privacy" onClick={(e) => { e.preventDefault(); alert('Privacy Policy: All player account info and transaction ledger data are secured server-side. No tracking cookies used.'); }} className="hover:text-white transition">Privacy Guidelines</a>
             </div>
           </div>
-
-          <div className="space-y-3">
-            <h4 className="font-extrabold text-white uppercase text-[10px] tracking-wider">License & Security</h4>
-            <p className="leading-normal text-[#8daaa3]">
-              BETEPRO processes transfers via secure simulated bKash Nagad gateways. Currencies mapped 1:1 with BDT virtual credits.
-            </p>
-          </div>
-
-        </div>
-
-        <div className="max-w-7xl w-full mx-auto border-t border-[#0e4b3c] pt-6 mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-center">
-          <p>© 2026 BETEPRO Systems Inc. All simulated rights reserved.</p>
-          <div className="flex space-x-4 text-[#8daaa3]">
-            <a href="#terms" onClick={(e) => { e.preventDefault(); alert('Terms of Service: This simulated betting web-app uses demo virtual credit points. No real physical currencies can be deposited or gained.'); }} className="hover:text-white transition">Terms & Conditions</a>
-            <span>•</span>
-            <a href="#privacy" onClick={(e) => { e.preventDefault(); alert('Privacy Policy: All player account info and transaction ledger data are secured server-side. No tracking cookies used.'); }} className="hover:text-white transition">Privacy Guidelines</a>
-          </div>
-        </div>
-      </footer>
+        </footer>
+      )}
 
       {/* MASTER AUTH MODAL POPUPS */}
       <AnimatePresence>
@@ -1096,10 +1125,12 @@ export default function App() {
               className="bg-[#03211a] border border-[#0e4b3c] rounded-3xl max-w-sm w-full p-6 space-y-4 relative shadow-2xl text-white"
             >
               <button 
+                type="button"
                 onClick={() => setAuthMode(null)} 
-                className="absolute top-5 right-5 text-[#8daaa3] hover:text-white transition text-sm font-bold"
+                className="absolute top-4 right-4 z-50 p-2 text-[#8daaa3] hover:text-white hover:bg-[#053d30] rounded-full transition-all cursor-pointer"
+                aria-label="Close"
               >
-                ✕
+                <X className="h-4 w-4" />
               </button>
 
               {authMode === 'login' && (
@@ -1139,13 +1170,13 @@ export default function App() {
 
                   <form onSubmit={handleLoginSubmit} className="space-y-3.5 text-xs text-slate-200">
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-[#8daaa3] uppercase">Email Address</label>
+                      <label className="text-[10px] font-bold text-[#8daaa3] uppercase">Email or Username</label>
                       <input
-                        type="email"
+                        type="text"
                         required
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="yourname@gmail.com"
+                        placeholder="yourname@gmail.com or username"
                         className="w-full rounded-xl bg-[#053d30] border border-[#0e4b3c] p-3 text-white placeholder-slate-400/50 focus:border-yellow-400 focus:bg-[#074c3d] focus:outline-none transition duration-200"
                       />
                     </div>

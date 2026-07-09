@@ -100,224 +100,42 @@ export function createApp() {
 
   // User registration
   app.post('/api/auth/register', async (req, res) => {
-    const { username, email, phone, password, referralCode } = req.body;
+    try {
+      const { username, email, phone, password, referralCode } = req.body;
 
-    if (!username || !email || !password) {
-      res.status(400).json({ error: 'Please enter all required fields.' });
-      return;
-    }
-
-    if (username.length < 3) {
-      res.status(400).json({ error: 'Username must be at least 3 characters.' });
-      return;
-    }
-
-    if (password.length < 6) {
-      res.status(400).json({ error: 'Password must be at least 6 characters.' });
-      return;
-    }
-
-    const db = readDb();
-
-    // Check existing
-    const existingUser = db.users.find(u => u.username.toLowerCase() === username.toLowerCase() || u.email.toLowerCase() === email.toLowerCase());
-    if (existingUser) {
-      res.status(400).json({ error: 'Username or email already exists.' });
-      return;
-    }
-
-    if (phone) {
-      const existingPhone = db.users.find(u => u.phone === phone);
-      if (existingPhone) {
-        res.status(400).json({ error: 'Phone number already registered.' });
+      if (!username || !email || !password) {
+        res.status(400).json({ error: 'Please enter all required fields.' });
         return;
       }
-    }
 
-    // Referral setup
-    let referredBy: string | undefined = undefined;
-    if (referralCode) {
-      const referrer = db.users.find(u => u.referralCode.toLowerCase() === referralCode.toLowerCase());
-      if (referrer) {
-        referredBy = referrer.id;
+      if (username.length < 3) {
+        res.status(400).json({ error: 'Username must be at least 3 characters.' });
+        return;
       }
-    }
 
-    const salt = generateSalt();
-    const passwordHash = hashPassword(password, salt);
-    const userId = 'user_' + Math.random().toString(36).substr(2, 9);
-    const userReferral = 'BET-' + username.substring(0, 4).toUpperCase() + Math.floor(100 + Math.random() * 900);
-
-    // Standard starting balance of ৳500 for high engagement
-    const startBalance = referredBy ? 700 : 500; 
-
-    const finalPhone = phone || '017' + Math.floor(10000000 + Math.random() * 90000000);
-
-    const newUser: DatabaseSchema['users'][0] = {
-      id: userId,
-      username,
-      email,
-      phone: finalPhone,
-      role: 'user',
-      balance: startBalance,
-      referralCode: userReferral,
-      referredBy,
-      vipLevel: 0,
-      vipPoints: 0,
-      isBlocked: false,
-      fullName: username,
-      createdAt: new Date().toISOString(),
-      passwordHash,
-      salt
-    };
-
-    db.users.push(newUser);
-
-    // Initial sign-up notification
-    db.notifications.push({
-      id: 'notif_' + Math.random().toString(36).substr(2, 9),
-      userId: userId,
-      title: '🎁 Welcome to BETEPRO!',
-      message: `Thanks for joining us, ${username}! We have credited a promotional ৳${startBalance} to your wallet. Dive into live sports betting and casino games!`,
-      read: false,
-      createdAt: new Date().toISOString()
-    });
-
-    // Notify referrer if applicable
-    if (referredBy) {
-      const referrer = db.users.find(u => u.id === referredBy);
-      if (referrer) {
-        referrer.balance += 200; // Credited ৳200 bonus
-        db.transactions.push({
-          id: 'tx_' + Math.random().toString(36).substr(2, 9),
-          userId: referrer.id,
-          username: referrer.username,
-          type: 'referral_bonus',
-          amount: 200,
-          status: 'success',
-          description: `Referral bonus for inviting ${username}`,
-          createdAt: new Date().toISOString()
-        });
-        db.notifications.push({
-          id: 'notif_' + Math.random().toString(36).substr(2, 9),
-          userId: referrer.id,
-          title: '👥 Referral Bonus Credited!',
-          message: `Your friend ${username} registered using your link. ৳200 referral bonus was added to your wallet!`,
-          read: false,
-          createdAt: new Date().toISOString()
-        });
+      if (password.length < 6) {
+        res.status(400).json({ error: 'Password must be at least 6 characters.' });
+        return;
       }
-    }
 
-    await writeDb(db);
+      const db = readDb();
 
-    const token = signJwt({ id: userId, role: 'user' });
-
-    res.status(201).json({
-      token,
-      user: {
-        id: userId,
-        username,
-        email,
-        phone,
-        role: 'user',
-        balance: startBalance,
-        referralCode: userReferral,
-        vipLevel: 0,
-        vipPoints: 0,
-        fullName: username,
-        createdAt: newUser.createdAt
+      // Check existing
+      const existingUser = db.users.find(u => u.username.toLowerCase() === username.toLowerCase() || u.email.toLowerCase() === email.toLowerCase());
+      if (existingUser) {
+        res.status(400).json({ error: 'Username or email already exists.' });
+        return;
       }
-    });
-  });
 
-  // User login
-  app.post('/api/auth/login', (req, res) => {
-    const { username, password } = req.body;
-
-    if (!username || !password) {
-      res.status(400).json({ error: 'Please enter all fields.' });
-      return;
-    }
-
-    const db = readDb();
-    const user = db.users.find(u => u.username.toLowerCase() === username.toLowerCase() || u.email.toLowerCase() === username.toLowerCase());
-
-    if (!user) {
-      res.status(400).json({ error: 'Invalid username/email or password.' });
-      return;
-    }
-
-    if (user.isBlocked) {
-      res.status(403).json({ error: 'This account has been suspended. Please contact customer support.' });
-      return;
-    }
-
-    const hash = hashPassword(password, user.salt);
-    if (hash !== user.passwordHash) {
-      res.status(400).json({ error: 'Invalid username/email or password.' });
-      return;
-    }
-
-    const token = signJwt({ id: user.id, role: user.role });
-
-    res.json({
-      token,
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
-        balance: user.balance,
-        referralCode: user.referralCode,
-        referredBy: user.referredBy,
-        vipLevel: user.vipLevel,
-        vipPoints: user.vipPoints,
-        avatarUrl: user.avatarUrl,
-        fullName: user.fullName,
-        createdAt: user.createdAt
+      if (phone) {
+        const existingPhone = db.users.find(u => u.phone === phone);
+        if (existingPhone) {
+          res.status(400).json({ error: 'Phone number already registered.' });
+          return;
+        }
       }
-    });
-  });
 
-  // Firebase Authentication Sync (Log in or sign up with Firebase)
-  app.post('/api/auth/firebase-sync', async (req, res) => {
-    const { email, uid, username, referralCode } = req.body;
-
-    if (!email || !uid) {
-      res.status(400).json({ error: 'Missing email or UID for Firebase Sync.' });
-      return;
-    }
-
-    const db = readDb();
-    
-    // Check if user already exists in local DB
-    let user = db.users.find(u => u.email.toLowerCase() === email.toLowerCase() || u.id === uid);
-
-    if (user) {
-      // User exists. Link ID if they logged in with the same email but have different id
-      if (user.id !== uid) {
-        const oldId = user.id;
-        user.id = uid;
-        
-        // Migrate other occurrences in DB
-        db.predictions.forEach(p => { if (p.userId === oldId) p.userId = uid; });
-        db.transactions.forEach(t => { if (t.userId === oldId) t.userId = uid; });
-        db.notifications.forEach(n => { if (n.userId === oldId) n.userId = uid; });
-        db.supportTickets.forEach(s => { if (s.userId === oldId) s.userId = uid; });
-      }
-      
-      const isAdminEmail = email.toLowerCase() === 'admin@betepro.com' || email.toLowerCase() === 'aburayhan10x@gmail.com';
-      if (isAdminEmail && user.role !== 'primary_admin') {
-        user.role = 'primary_admin';
-      }
-      await writeDb(db);
-    } else {
-      // User does not exist, let's create a new profile in local database
-      const finalUsername = username || email.split('@')[0] || 'player_' + Math.random().toString(36).substr(2, 5);
-      
-      // Referral check
+      // Referral setup
       let referredBy: string | undefined = undefined;
       if (referralCode) {
         const referrer = db.users.find(u => u.referralCode.toLowerCase() === referralCode.toLowerCase());
@@ -326,47 +144,51 @@ export function createApp() {
         }
       }
 
-      const startBalance = referredBy ? 700 : 500;
-      const userReferral = 'BET-' + finalUsername.substring(0, 4).toUpperCase() + Math.floor(100 + Math.random() * 900);
-      
-      // Determine role
-      const role = (email.toLowerCase() === 'admin@betepro.com' || email.toLowerCase() === 'aburayhan10x@gmail.com') ? 'primary_admin' : 'user';
+      const salt = generateSalt();
+      const passwordHash = hashPassword(password, salt);
+      const userId = 'user_' + Math.random().toString(36).substr(2, 9);
+      const userReferral = 'BET-' + username.substring(0, 4).toUpperCase() + Math.floor(100 + Math.random() * 900);
+
+      // Standard starting balance of ৳500 for high engagement
+      const startBalance = referredBy ? 700 : 500; 
+
+      const finalPhone = phone || '017' + Math.floor(10000000 + Math.random() * 90000000);
 
       const newUser: DatabaseSchema['users'][0] = {
-        id: uid, // Use Firebase UID as the user ID
-        username: finalUsername,
-        email: email.toLowerCase(),
-        phone: '017' + Math.floor(10000000 + Math.random() * 90000000), 
-        role,
+        id: userId,
+        username,
+        email,
+        phone: finalPhone,
+        role: 'user',
         balance: startBalance,
         referralCode: userReferral,
         referredBy,
-        vipLevel: role === 'primary_admin' ? 4 : 0,
-        vipPoints: role === 'primary_admin' ? 60000 : 0,
+        vipLevel: 0,
+        vipPoints: 0,
         isBlocked: false,
-        fullName: finalUsername,
+        fullName: username,
         createdAt: new Date().toISOString(),
-        passwordHash: '', 
-        salt: ''
+        passwordHash,
+        salt
       };
 
       db.users.push(newUser);
 
-      // Create initial notification
+      // Initial sign-up notification
       db.notifications.push({
         id: 'notif_' + Math.random().toString(36).substr(2, 9),
-        userId: uid,
-        title: '🎁 Welcome to BETEPRO via Firebase!',
-        message: `Thanks for joining us, ${finalUsername}! We have credited a promotional ৳${startBalance} to your wallet. Dive into live sports betting and casino games!`,
+        userId: userId,
+        title: '🎁 Welcome to BETEPRO!',
+        message: `Thanks for joining us, ${username}! We have credited a promotional ৳${startBalance} to your wallet. Dive into live sports betting and casino games!`,
         read: false,
         createdAt: new Date().toISOString()
       });
 
-      // Handle referral bonus
+      // Notify referrer if applicable
       if (referredBy) {
         const referrer = db.users.find(u => u.id === referredBy);
         if (referrer) {
-          referrer.balance += 200;
+          referrer.balance += 200; // Credited ৳200 bonus
           db.transactions.push({
             id: 'tx_' + Math.random().toString(36).substr(2, 9),
             userId: referrer.id,
@@ -374,14 +196,14 @@ export function createApp() {
             type: 'referral_bonus',
             amount: 200,
             status: 'success',
-            description: `Referral bonus for inviting ${finalUsername}`,
+            description: `Referral bonus for inviting ${username}`,
             createdAt: new Date().toISOString()
           });
           db.notifications.push({
             id: 'notif_' + Math.random().toString(36).substr(2, 9),
             userId: referrer.id,
             title: '👥 Referral Bonus Credited!',
-            message: `Your friend ${finalUsername} registered using your link. ৳200 referral bonus was added to your wallet!`,
+            message: `Your friend ${username} registered using your link. ৳200 referral bonus was added to your wallet!`,
             read: false,
             createdAt: new Date().toISOString()
           });
@@ -389,35 +211,228 @@ export function createApp() {
       }
 
       await writeDb(db);
-      user = newUser;
+
+      const token = signJwt({ id: userId, role: 'user' });
+
+      res.status(201).json({
+        token,
+        user: {
+          id: userId,
+          username,
+          email,
+          phone,
+          role: 'user',
+          balance: startBalance,
+          referralCode: userReferral,
+          vipLevel: 0,
+          vipPoints: 0,
+          fullName: username,
+          createdAt: newUser.createdAt
+        }
+      });
+    } catch (err: any) {
+      console.error('[AUTH] Registration error:', err);
+      res.status(500).json({ error: err.message || 'An internal server error occurred during registration.' });
     }
+  });
 
-    if (user.isBlocked) {
-      res.status(403).json({ error: 'This account has been suspended. Please contact customer support.' });
-      return;
-    }
+  // User login
+  app.post('/api/auth/login', async (req, res) => {
+    try {
+      const { username, password } = req.body;
 
-    // Sign local JWT token using their ID & role
-    const token = signJwt({ id: user.id, role: user.role });
-
-    res.json({
-      token,
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
-        balance: user.balance,
-        referralCode: user.referralCode,
-        referredBy: user.referredBy,
-        vipLevel: user.vipLevel,
-        vipPoints: user.vipPoints,
-        avatarUrl: user.avatarUrl,
-        fullName: user.fullName,
-        createdAt: user.createdAt
+      if (!username || !password) {
+        res.status(400).json({ error: 'Please enter all fields.' });
+        return;
       }
-    });
+
+      const db = readDb();
+      const user = db.users.find(u => u.username.toLowerCase() === username.toLowerCase() || u.email.toLowerCase() === username.toLowerCase());
+
+      if (!user) {
+        res.status(400).json({ error: 'Invalid username/email or password.' });
+        return;
+      }
+
+      if (user.isBlocked) {
+        res.status(403).json({ error: 'This account has been suspended. Please contact customer support.' });
+        return;
+      }
+
+      const hash = hashPassword(password, user.salt);
+      if (hash !== user.passwordHash) {
+        res.status(400).json({ error: 'Invalid username/email or password.' });
+        return;
+      }
+
+      const token = signJwt({ id: user.id, role: user.role });
+
+      res.json({
+        token,
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          phone: user.phone,
+          role: user.role,
+          balance: user.balance,
+          referralCode: user.referralCode,
+          referredBy: user.referredBy,
+          vipLevel: user.vipLevel,
+          vipPoints: user.vipPoints,
+          avatarUrl: user.avatarUrl,
+          fullName: user.fullName,
+          createdAt: user.createdAt
+        }
+      });
+    } catch (err: any) {
+      console.error('[AUTH] Login error:', err);
+      res.status(500).json({ error: err.message || 'An internal server error occurred during login.' });
+    }
+  });
+
+  // Firebase Authentication Sync (Log in or sign up with Firebase)
+  app.post('/api/auth/firebase-sync', async (req, res) => {
+    try {
+      const { email, uid, username, referralCode } = req.body;
+
+      if (!email || !uid) {
+        res.status(400).json({ error: 'Missing email or UID for Firebase Sync.' });
+        return;
+      }
+
+      const db = readDb();
+      
+      // Check if user already exists in local DB
+      let user = db.users.find(u => u.email.toLowerCase() === email.toLowerCase() || u.id === uid);
+
+      if (user) {
+        // User exists. Link ID if they logged in with the same email but have different id
+        if (user.id !== uid) {
+          const oldId = user.id;
+          user.id = uid;
+          
+          // Migrate other occurrences in DB
+          db.predictions.forEach(p => { if (p.userId === oldId) p.userId = uid; });
+          db.transactions.forEach(t => { if (t.userId === oldId) t.userId = uid; });
+          db.notifications.forEach(n => { if (n.userId === oldId) n.userId = uid; });
+          db.supportTickets.forEach(s => { if (s.userId === oldId) s.userId = uid; });
+        }
+        
+        const isAdminEmail = email.toLowerCase() === 'admin@betepro.com' || email.toLowerCase() === 'aburayhan10x@gmail.com';
+        if (isAdminEmail && user.role !== 'primary_admin') {
+          user.role = 'primary_admin';
+        }
+        await writeDb(db);
+      } else {
+        // User does not exist, let's create a new profile in local database
+        const finalUsername = username || email.split('@')[0] || 'player_' + Math.random().toString(36).substr(2, 5);
+        
+        // Referral check
+        let referredBy: string | undefined = undefined;
+        if (referralCode) {
+          const referrer = db.users.find(u => u.referralCode.toLowerCase() === referralCode.toLowerCase());
+          if (referrer) {
+            referredBy = referrer.id;
+          }
+        }
+
+        const startBalance = referredBy ? 700 : 500;
+        const userReferral = 'BET-' + finalUsername.substring(0, 4).toUpperCase() + Math.floor(100 + Math.random() * 900);
+        
+        // Determine role
+        const role = (email.toLowerCase() === 'admin@betepro.com' || email.toLowerCase() === 'aburayhan10x@gmail.com') ? 'primary_admin' : 'user';
+
+        const newUser: DatabaseSchema['users'][0] = {
+          id: uid, // Use Firebase UID as the user ID
+          username: finalUsername,
+          email: email.toLowerCase(),
+          phone: '017' + Math.floor(10000000 + Math.random() * 90000000), 
+          role,
+          balance: startBalance,
+          referralCode: userReferral,
+          referredBy,
+          vipLevel: role === 'primary_admin' ? 4 : 0,
+          vipPoints: role === 'primary_admin' ? 60000 : 0,
+          isBlocked: false,
+          fullName: finalUsername,
+          createdAt: new Date().toISOString(),
+          passwordHash: '', 
+          salt: ''
+        };
+
+        db.users.push(newUser);
+
+        // Create initial notification
+        db.notifications.push({
+          id: 'notif_' + Math.random().toString(36).substr(2, 9),
+          userId: uid,
+          title: '🎁 Welcome to BETEPRO via Firebase!',
+          message: `Thanks for joining us, ${finalUsername}! We have credited a promotional ৳${startBalance} to your wallet. Dive into live sports betting and casino games!`,
+          read: false,
+          createdAt: new Date().toISOString()
+        });
+
+        // Handle referral bonus
+        if (referredBy) {
+          const referrer = db.users.find(u => u.id === referredBy);
+          if (referrer) {
+            referrer.balance += 200;
+            db.transactions.push({
+              id: 'tx_' + Math.random().toString(36).substr(2, 9),
+              userId: referrer.id,
+              username: referrer.username,
+              type: 'referral_bonus',
+              amount: 200,
+              status: 'success',
+              description: `Referral bonus for inviting ${finalUsername}`,
+              createdAt: new Date().toISOString()
+            });
+            db.notifications.push({
+              id: 'notif_' + Math.random().toString(36).substr(2, 9),
+              userId: referrer.id,
+              title: '👥 Referral Bonus Credited!',
+              message: `Your friend ${finalUsername} registered using your link. ৳200 referral bonus was added to your wallet!`,
+              read: false,
+              createdAt: new Date().toISOString()
+            });
+          }
+        }
+
+        await writeDb(db);
+        user = newUser;
+      }
+
+      if (user.isBlocked) {
+        res.status(403).json({ error: 'This account has been suspended. Please contact customer support.' });
+        return;
+      }
+
+      // Sign local JWT token using their ID & role
+      const token = signJwt({ id: user.id, role: user.role });
+
+      res.json({
+        token,
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          phone: user.phone,
+          role: user.role,
+          balance: user.balance,
+          referralCode: user.referralCode,
+          referredBy: user.referredBy,
+          vipLevel: user.vipLevel,
+          vipPoints: user.vipPoints,
+          avatarUrl: user.avatarUrl,
+          fullName: user.fullName,
+          createdAt: user.createdAt
+        }
+      });
+    } catch (err: any) {
+      console.error('[AUTH] Firebase Sync error:', err);
+      res.status(500).json({ error: err.message || 'An internal server error occurred during authentication sync.' });
+    }
   });
 
   // Get current user profile

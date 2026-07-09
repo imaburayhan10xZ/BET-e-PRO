@@ -6,7 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, getDocs } from 'firebase/firestore';
 import { 
   User, Match, Prediction, Transaction, 
@@ -543,7 +543,7 @@ export function getFirestoreDb() {
 
     if (firebaseConfig) {
       try {
-        const app = initializeApp(firebaseConfig);
+        const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
         dbInstance = getFirestore(app, firebaseConfig.firestoreDatabaseId);
         console.log('[BETEPRO] Firebase initialized successfully with database:', firebaseConfig.firestoreDatabaseId || '(default)');
       } catch (err) {
