@@ -723,6 +723,19 @@ export async function syncCollectionToFirestore<T extends { id?: string; usernam
   }
 }
 
+// Helper to wrap promise with a strict timeout to avoid Vercel serverless function hangs
+export function withTimeout<T>(promise: Promise<T>, ms: number, errorMessage = 'Operation timed out'): Promise<T> {
+  let timeoutId: NodeJS.Timeout;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(errorMessage));
+    }, ms);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    clearTimeout(timeoutId);
+  });
+}
+
 export const loadedFromFirestore: Record<string, boolean> = {};
 let isSettingsLoaded = false;
 
@@ -782,12 +795,20 @@ export async function ensureDbLoaded(reqPath?: string): Promise<DatabaseSchema> 
   // Load settings once
   if (!isSettingsLoaded) {
     try {
-      const systemDoc = await getDoc(doc(firestore, 'settings', 'system'));
+      const systemDoc = await withTimeout(
+        getDoc(doc(firestore, 'settings', 'system')),
+        1500,
+        'Firestore settings fetch timed out'
+      );
       if (systemDoc.exists()) {
         cachedDb.settings = systemDoc.data() as SystemSettings;
       } else {
         console.log('[BETEPRO] Settings document not found in system. Seeding default...');
-        await setDoc(doc(firestore, 'settings', 'system'), DEFAULT_SETTINGS);
+        await withTimeout(
+          setDoc(doc(firestore, 'settings', 'system'), DEFAULT_SETTINGS),
+          1500,
+          'Firestore settings seed timed out'
+        );
         cachedDb.settings = DEFAULT_SETTINGS;
       }
       isSettingsLoaded = true;
@@ -821,33 +842,37 @@ export async function ensureDbLoaded(reqPath?: string): Promise<DatabaseSchema> 
   ];
 
   try {
-    await Promise.all(
-      unloadedKeys.map(async (key) => {
-        const colConfig = listCollections.find(c => c.key === key);
-        if (!colConfig) return;
+    await withTimeout(
+      Promise.all(
+        unloadedKeys.map(async (key) => {
+          const colConfig = listCollections.find(c => c.key === key);
+          if (!colConfig) return;
 
-        try {
-          const querySnapshot = await getDocs(collection(firestore, key));
-          const items: any[] = [];
-          querySnapshot.forEach((docSnap) => {
-            items.push({ [colConfig.idKey]: docSnap.id, ...docSnap.data() });
-          });
-
-          if (key === 'users') {
-            items.forEach(u => {
-              const emailLower = u.email?.toLowerCase();
-              if (u.username === 'admin' || emailLower === 'admin@betepro.com' || emailLower === 'aburayhan10x@gmail.com') {
-                u.role = 'primary_admin';
-              }
+          try {
+            const querySnapshot = await getDocs(collection(firestore, key));
+            const items: any[] = [];
+            querySnapshot.forEach((docSnap) => {
+              items.push({ [colConfig.idKey]: docSnap.id, ...docSnap.data() });
             });
-          }
 
-          cachedDb![key] = items as any;
-          loadedFromFirestore[key] = true;
-        } catch (err) {
-          console.error(`[BETEPRO] Failed to fetch collection ${key} from Firestore:`, err);
-        }
-      })
+            if (key === 'users') {
+              items.forEach(u => {
+                const emailLower = u.email?.toLowerCase();
+                if (u.username === 'admin' || emailLower === 'admin@betepro.com' || emailLower === 'aburayhan10x@gmail.com') {
+                  u.role = 'primary_admin';
+                }
+              });
+            }
+
+            cachedDb![key] = items as any;
+            loadedFromFirestore[key] = true;
+          } catch (err) {
+            console.error(`[BETEPRO] Failed to fetch collection ${key} from Firestore:`, err);
+          }
+        })
+      ),
+      2500,
+      'Firestore parallel lazy load timed out'
     );
   } catch (err) {
     console.error('[BETEPRO] Error during parallel lazy load:', err);
@@ -904,7 +929,11 @@ export async function writeDb(data: DatabaseSchema): Promise<void> {
     }
 
     if (promises.length > 0) {
-      await Promise.all(promises);
+      await withTimeout(
+        Promise.all(promises),
+        3000,
+        'Firestore writeDb collection sync timed out'
+      );
     }
   } catch (err) {
     console.error('[BETEPRO] Async Firestore collection sync failed:', err);

@@ -1142,61 +1142,159 @@ export default function App() {
       {/* MASTER AUTH MODAL POPUPS */}
       <AnimatePresence>
         {authMode && (
-          <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
             <motion.div 
-              initial={{ scale: 0.95, opacity: 0 }}
+              initial={{ scale: 0.92, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-[#03211a] border border-[#0e4b3c] rounded-3xl max-w-sm w-full p-6 space-y-4 relative shadow-2xl text-white max-h-[90vh] overflow-y-auto"
+              exit={{ scale: 0.92, opacity: 0 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+              className="bg-gradient-to-b from-[#03211a] to-[#011410] border border-[#0e4b3c]/80 rounded-[2rem] max-w-md w-full p-7 space-y-6 relative shadow-[0_0_50px_rgba(0,0,0,0.8)] text-white max-h-[90vh] overflow-y-auto scrollbar-thin scrollbar-thumb-emerald-900 scrollbar-track-transparent"
             >
+              {/* Close Button */}
               <button 
                 type="button"
                 onClick={() => setAuthMode(null)} 
-                className="absolute top-4 right-4 z-50 p-2 text-[#8daaa3] hover:text-white hover:bg-[#053d30] rounded-full transition-all cursor-pointer"
+                className="absolute top-5 right-5 z-50 p-2 text-[#8daaa3] hover:text-white hover:bg-[#0e4b3c]/50 rounded-full transition-all duration-200 cursor-pointer"
                 aria-label="Close"
               >
                 <X className="h-4 w-4" />
               </button>
 
+              {/* Branding Header */}
+              <div className="text-center space-y-1.5 pt-2">
+                <span className="shiny-logo-text text-xl block italic tracking-wider font-extrabold text-yellow-400">
+                  BETEPRO.COM
+                </span>
+                <p className="text-[10px] font-bold text-yellow-500/80 tracking-widest uppercase">
+                  Elite Sports & Casino Platform
+                </p>
+              </div>
+
+              {/* Tabs for Login & Register */}
+              {authMode !== 'forgot' && (
+                <div className="flex border-b border-[#0e4b3c] p-0.5 bg-[#011410] rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => { setAuthMode('login'); setAuthError(''); setAuthSuccess(''); }}
+                    className={`flex-1 py-2.5 text-xs font-black tracking-wider uppercase rounded-lg transition-all duration-300 ${
+                      authMode === 'login'
+                        ? 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-black shadow-md'
+                        : 'text-[#8daaa3] hover:text-white'
+                    }`}
+                  >
+                    Player Login
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setAuthMode('register'); setAuthError(''); setAuthSuccess(''); }}
+                    className={`flex-1 py-2.5 text-xs font-black tracking-wider uppercase rounded-lg transition-all duration-300 ${
+                      authMode === 'register'
+                        ? 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-black shadow-md'
+                        : 'text-[#8daaa3] hover:text-white'
+                    }`}
+                  >
+                    Open Profile
+                  </button>
+                </div>
+              )}
+
+              {/* Auth Mode Description */}
+              <div className="text-center space-y-0.5">
+                <h3 className="text-sm font-black text-white uppercase tracking-wider">
+                  {authMode === 'login' && 'Welcome Back'}
+                  {authMode === 'register' && 'Join Elite Club'}
+                  {authMode === 'forgot' && 'Account Recovery'}
+                </h3>
+                <p className="text-[11px] text-[#8daaa3]">
+                  {authMode === 'login' && 'Enter credentials to load your active wagers'}
+                  {authMode === 'register' && 'Get instantly credited with ৳700 welcome bonus'}
+                  {authMode === 'forgot' && 'Recover secure passcode key instantly'}
+                </p>
+              </div>
+
+              {/* Auth Error Handler (Ultra Sleek, Informative) */}
+              {authError && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -8 }} 
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-3.5 rounded-2xl bg-red-950/50 border border-red-500/30 text-red-300 text-[11px] leading-relaxed flex items-start gap-3 shadow-inner"
+                >
+                  <AlertCircle className="h-4.5 w-4.5 text-red-400 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <span className="font-extrabold block text-red-200 uppercase tracking-widest text-[9px]">
+                      Authentication Notice
+                    </span>
+                    {authError.includes('operation-not-allowed') ? (
+                      <p>
+                        <strong>Standard credentials disabled</strong>. Please use the secure <strong>Continue with Google</strong> instant login button above to authenticate.
+                      </p>
+                    ) : authError.includes('Vercel Serverless') || authError.includes('Status 500') ? (
+                      <div className="space-y-1.5">
+                        <p>
+                          <strong>Sync Fallback Triggered</strong>. The primary server is currently scaling database nodes. 
+                        </p>
+                        <p className="bg-amber-400/10 border border-amber-400/20 p-2 rounded-lg text-amber-300 text-[10px] font-semibold">
+                          💡 <strong>How to Login Now:</strong> Simply click the white <strong>Continue with Google</strong> button above. This is fully client-side, incredibly fast, and bypasses any server-side database latency!
+                        </p>
+                      </div>
+                    ) : (
+                      <p>{authError}</p>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+
+              {authSuccess && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -8 }} 
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-3 rounded-xl bg-emerald-950/40 text-emerald-400 border border-emerald-900/40 font-bold text-[11px]"
+                >
+                  {authSuccess}
+                </motion.div>
+              )}
+
+              {/* SOCIAL SIGN-IN BLOCK */}
+              {authMode !== 'forgot' && (
+                <div className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={handleGoogleSignIn}
+                    disabled={isAuthLoading}
+                    className="w-full flex items-center justify-center space-x-3 rounded-2xl bg-white text-black py-3 text-xs font-black hover:bg-neutral-100 active:scale-95 transition-all duration-200 disabled:opacity-50 cursor-pointer shadow-lg"
+                  >
+                    <svg className="h-4 w-4 bg-white rounded-full p-0.5 shrink-0" viewBox="0 0 24 24" fill="none">
+                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05" />
+                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335" />
+                    </svg>
+                    <span>Connect Instantly with Google</span>
+                  </button>
+
+                  <div className="p-3 rounded-2xl bg-emerald-950/30 border border-emerald-900/30 text-[10px] leading-relaxed text-[#8daaa3] text-center font-medium">
+                    <span className="font-extrabold text-emerald-400">✨ Recommended Secure Path:</span>
+                    <p className="mt-0.5">One-click sign-up connects you directly via secure Google API. Fast, encrypted, and bypasses local login fields.</p>
+                  </div>
+
+                  <div className="relative flex items-center justify-center py-2">
+                    <div className="absolute inset-y-1/2 left-0 right-0 border-t border-[#0e4b3c]"></div>
+                    <span className="relative bg-[#02211a] px-3.5 text-[8px] font-black text-[#8daaa3] uppercase tracking-widest">
+                      or manual email system
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* LOGIN VIEW */}
               {authMode === 'login' && (
-                <>
-                  <div className="text-center space-y-1">
-                    <span className="shiny-logo-text text-lg block italic">BETEPRO.COM</span>
-                    <h3 className="text-md font-black text-white">Welcome Back Player</h3>
-                    <p className="text-[11px] text-[#8daaa3]">Access your sports predictions portfolio</p>
-                  </div>
-
-                  <div className="space-y-3.5">
-                    {/* Primary Login Option: Google Auth */}
-                    <button
-                      type="button"
-                      onClick={handleGoogleSignIn}
-                      disabled={isAuthLoading}
-                      className="w-full flex items-center justify-center space-x-2.5 rounded-xl bg-white text-black py-2.5 text-xs font-black hover:bg-slate-100 active:scale-95 transition duration-200 disabled:opacity-50"
-                    >
-                      <svg className="h-4 w-4 bg-white rounded-full p-0.5" viewBox="0 0 24 24" fill="none">
-                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05" />
-                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335" />
-                      </svg>
-                      <span>Continue with Google</span>
-                    </button>
-
-                    <div className="p-3 rounded-2xl bg-emerald-950/40 border border-emerald-900/40 text-[10px] leading-relaxed text-[#8daaa3] text-center font-medium">
-                      <span className="font-extrabold text-emerald-400">✨ Recommended Instant Sign-in:</span>
-                      <p className="mt-0.5">Click the white Google button above to log in or register instantly with your Google account. Zero passwords required!</p>
-                    </div>
-
-                    <div className="relative my-2 flex items-center justify-center">
-                      <div className="absolute inset-y-1/2 left-0 right-0 border-t border-[#0e4b3c]"></div>
-                      <span className="relative bg-[#03211a] px-2.5 text-[8px] font-black text-[#8daaa3] uppercase tracking-widest">or email login</span>
-                    </div>
-                  </div>
-
-                  <form onSubmit={handleLoginSubmit} className="space-y-3.5 text-xs text-slate-200">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-[#8daaa3] uppercase">Email or Username</label>
+                <form onSubmit={handleLoginSubmit} className="space-y-4 text-xs text-slate-200">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-extrabold text-[#8daaa3] uppercase tracking-wider">
+                      Email or Username
+                    </label>
+                    <div className="relative rounded-2xl bg-[#011410] border border-[#0e4b3c] focus-within:border-yellow-400/80 focus-within:bg-[#02211a] transition-all duration-300 p-3 flex items-center gap-3">
+                      <Mail className="h-4 w-4 text-yellow-400/80 shrink-0" />
                       <input
                         type="text"
                         required
@@ -1204,15 +1302,27 @@ export default function App() {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="yourname@gmail.com or username"
-                        className="w-full rounded-xl bg-[#053d30] border border-[#0e4b3c] p-3 text-white placeholder-slate-400/50 focus:border-yellow-400 focus:bg-[#074c3d] focus:outline-none transition duration-200 disabled:opacity-50"
+                        className="w-full bg-transparent text-sm text-white font-medium placeholder-slate-400/40 focus:outline-none disabled:opacity-50"
                       />
                     </div>
+                  </div>
 
-                    <div className="space-y-1">
-                      <div className="flex justify-between items-center">
-                        <label className="text-[10px] font-bold text-[#8daaa3] uppercase">Secure Password</label>
-                        <button type="button" disabled={isAuthLoading} onClick={() => setAuthMode('forgot')} className="text-[9px] font-black text-yellow-400 uppercase hover:underline disabled:opacity-50">Forgot?</button>
-                      </div>
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] font-extrabold text-[#8daaa3] uppercase tracking-wider">
+                        Secure Password
+                      </label>
+                      <button 
+                        type="button" 
+                        disabled={isAuthLoading} 
+                        onClick={() => setAuthMode('forgot')} 
+                        className="text-[9px] font-black text-yellow-400 uppercase tracking-wider hover:underline disabled:opacity-50"
+                      >
+                        Forgot Pass?
+                      </button>
+                    </div>
+                    <div className="relative rounded-2xl bg-[#011410] border border-[#0e4b3c] focus-within:border-yellow-400/80 focus-within:bg-[#02211a] transition-all duration-300 p-3 flex items-center gap-3">
+                      <ShieldCheck className="h-4 w-4 text-yellow-400/80 shrink-0" />
                       <input
                         type="password"
                         required
@@ -1220,83 +1330,37 @@ export default function App() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••"
-                        className="w-full rounded-xl bg-[#053d30] border border-[#0e4b3c] p-3 text-white placeholder-slate-400/50 focus:border-yellow-400 focus:bg-[#074c3d] focus:outline-none transition duration-200 disabled:opacity-50"
+                        className="w-full bg-transparent text-sm text-white font-medium placeholder-slate-400/40 focus:outline-none disabled:opacity-50"
                       />
                     </div>
+                  </div>
 
-                    {authError && (
-                      <div className="p-2.5 rounded-lg bg-red-950/40 text-red-400 border border-red-900/40 font-semibold text-[11px] leading-normal">
-                        {authError.includes('operation-not-allowed') ? (
-                          <span>
-                            ⚠️ <strong>Email login disabled</strong><br />
-                            Please use the <strong>Continue with Google</strong> button above. Standard email login is deactivated by owner permissions in this environment.
-                          </span>
-                        ) : authError}
-                      </div>
+                  <button
+                    type="submit"
+                    disabled={isAuthLoading}
+                    className="w-full rounded-2xl bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 py-3 text-xs font-black uppercase tracking-wider text-black hover:brightness-110 active:scale-95 transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-75 cursor-pointer shadow-lg shadow-yellow-500/10"
+                  >
+                    {isAuthLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin text-black" />
+                        <span>Verifying Account...</span>
+                      </>
+                    ) : (
+                      <span>Authenticate Account</span>
                     )}
-
-                    <button
-                      type="submit"
-                      disabled={isAuthLoading}
-                      className="w-full rounded-xl bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 py-2.5 text-[11px] font-black uppercase tracking-wider text-black hover:brightness-110 active:scale-95 transition flex items-center justify-center space-x-2 disabled:opacity-75"
-                    >
-                      {isAuthLoading ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin text-black" />
-                          <span>Authenticating...</span>
-                        </>
-                      ) : (
-                        <span>Authenticate Account</span>
-                      )}
-                    </button>
-
-                    <p className="text-center text-[#8daaa3] text-[11px]">
-                      Don't have a profile?{' '}
-                      <button type="button" disabled={isAuthLoading} onClick={() => setAuthMode('register')} className="text-yellow-400 font-extrabold hover:underline disabled:opacity-50">Register Free</button>
-                    </p>
-                  </form>
-                </>
+                  </button>
+                </form>
               )}
 
+              {/* REGISTER VIEW */}
               {authMode === 'register' && (
-                <>
-                  <div className="text-center space-y-1">
-                    <span className="shiny-logo-text text-lg block italic">BETEPRO.COM</span>
-                    <h3 className="text-md font-black text-white">Create Member Account</h3>
-                    <p className="text-[11px] text-[#8daaa3]">Unlock ৳700 welcome gift balance free</p>
-                  </div>
-
-                  <div className="space-y-3.5">
-                    {/* Primary Register Option: Google Auth */}
-                    <button
-                      type="button"
-                      onClick={handleGoogleSignIn}
-                      disabled={isAuthLoading}
-                      className="w-full flex items-center justify-center space-x-2.5 rounded-xl bg-white text-black py-2.5 text-xs font-black hover:bg-slate-100 active:scale-95 transition duration-200 disabled:opacity-50"
-                    >
-                      <svg className="h-4 w-4 bg-white rounded-full p-0.5" viewBox="0 0 24 24" fill="none">
-                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05" />
-                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335" />
-                      </svg>
-                      <span>Continue with Google</span>
-                    </button>
-
-                    <div className="p-3 rounded-2xl bg-emerald-950/40 border border-emerald-900/40 text-[10px] leading-relaxed text-[#8daaa3] text-center font-medium">
-                      <span className="font-extrabold text-emerald-400">✨ Recommended Instant Registration:</span>
-                      <p className="mt-0.5">Click the white Google button above to log in or register instantly with your Google account. Zero passwords required!</p>
-                    </div>
-
-                    <div className="relative my-2 flex items-center justify-center">
-                      <div className="absolute inset-y-1/2 left-0 right-0 border-t border-[#0e4b3c]"></div>
-                      <span className="relative bg-[#03211a] px-2.5 text-[8px] font-black text-[#8daaa3] uppercase tracking-widest">or email registration</span>
-                    </div>
-                  </div>
-
-                  <form onSubmit={handleRegisterSubmit} className="space-y-3.5 text-xs text-slate-200">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-[#8daaa3] uppercase">Username Handle</label>
+                <form onSubmit={handleRegisterSubmit} className="space-y-4 text-xs text-slate-200">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-extrabold text-[#8daaa3] uppercase tracking-wider">
+                      Username Handle
+                    </label>
+                    <div className="relative rounded-2xl bg-[#011410] border border-[#0e4b3c] focus-within:border-yellow-400/80 focus-within:bg-[#02211a] transition-all duration-300 p-3 flex items-center gap-3">
+                      <Users className="h-4 w-4 text-yellow-400/80 shrink-0" />
                       <input
                         type="text"
                         required
@@ -1304,12 +1368,17 @@ export default function App() {
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
                         placeholder="e.g. sakib_boss"
-                        className="w-full rounded-xl bg-[#053d30] border border-[#0e4b3c] p-3 text-white placeholder-slate-400/50 focus:border-yellow-400 focus:bg-[#074c3d] focus:outline-none transition duration-200 disabled:opacity-50"
+                        className="w-full bg-transparent text-sm text-white font-medium placeholder-slate-400/40 focus:outline-none disabled:opacity-50"
                       />
                     </div>
+                  </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-[#8daaa3] uppercase">Email Address</label>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-extrabold text-[#8daaa3] uppercase tracking-wider">
+                      Email Address
+                    </label>
+                    <div className="relative rounded-2xl bg-[#011410] border border-[#0e4b3c] focus-within:border-yellow-400/80 focus-within:bg-[#02211a] transition-all duration-300 p-3 flex items-center gap-3">
+                      <Mail className="h-4 w-4 text-yellow-400/80 shrink-0" />
                       <input
                         type="email"
                         required
@@ -1317,12 +1386,17 @@ export default function App() {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="sakib@gmail.com"
-                        className="w-full rounded-xl bg-[#053d30] border border-[#0e4b3c] p-3 text-white placeholder-slate-400/50 focus:border-yellow-400 focus:bg-[#074c3d] focus:outline-none transition duration-200 disabled:opacity-50"
+                        className="w-full bg-transparent text-sm text-white font-medium placeholder-slate-400/40 focus:outline-none disabled:opacity-50"
                       />
                     </div>
+                  </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-[#8daaa3] uppercase">Password</label>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-extrabold text-[#8daaa3] uppercase tracking-wider">
+                      Choose Password
+                    </label>
+                    <div className="relative rounded-2xl bg-[#011410] border border-[#0e4b3c] focus-within:border-yellow-400/80 focus-within:bg-[#02211a] transition-all duration-300 p-3 flex items-center gap-3">
+                      <ShieldCheck className="h-4 w-4 text-yellow-400/80 shrink-0" />
                       <input
                         type="password"
                         required
@@ -1330,97 +1404,88 @@ export default function App() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••"
-                        className="w-full rounded-xl bg-[#053d30] border border-[#0e4b3c] p-3 text-white placeholder-slate-400/50 focus:border-yellow-400 focus:bg-[#074c3d] focus:outline-none transition duration-200 disabled:opacity-50"
+                        className="w-full bg-transparent text-sm text-white font-medium placeholder-slate-400/40 focus:outline-none disabled:opacity-50"
                       />
                     </div>
+                  </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-[#8daaa3] uppercase">Referral Code (Recommended)</label>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-extrabold text-yellow-400/90 uppercase tracking-wider flex items-center gap-1">
+                      <Sparkles className="h-3.5 w-3.5" /> Invite Referral Code (Optional)
+                    </label>
+                    <div className="relative rounded-2xl bg-[#011410] border border-yellow-400/20 focus-within:border-yellow-400 focus-within:bg-[#02211a] transition-all duration-300 p-3 flex items-center gap-3">
+                      <Flame className="h-4 w-4 text-yellow-400 shrink-0 animate-pulse" />
                       <input
                         type="text"
                         disabled={isAuthLoading}
                         value={referralCode}
                         onChange={(e) => setReferralCode(e.target.value)}
-                        placeholder="Paste code to get welcome gift"
-                        className="w-full rounded-xl bg-[#053d30] border border-[#0e4b3c] p-3 text-yellow-400 font-bold uppercase placeholder-slate-400/50 focus:border-yellow-400 focus:bg-[#074c3d] focus:outline-none transition duration-200 disabled:opacity-50"
+                        placeholder="Enter code to get welcome bonus"
+                        className="w-full bg-transparent text-sm text-yellow-400 font-bold uppercase placeholder-slate-400/30 focus:outline-none disabled:opacity-50"
                       />
                     </div>
-
-                    {authError && (
-                      <div className="p-2.5 rounded-lg bg-red-950/40 text-red-400 border border-red-900/40 font-semibold text-[11px] leading-normal">
-                        {authError.includes('operation-not-allowed') ? (
-                          <span>
-                            ⚠️ <strong>Email registration disabled</strong><br />
-                            Please use the <strong>Continue with Google</strong> button above. Standard registration is deactivated by owner permissions in this environment.
-                          </span>
-                        ) : authError}
-                      </div>
-                    )}
-                    {authSuccess && <div className="p-2.5 rounded-lg bg-emerald-950/40 text-emerald-400 border border-emerald-900/40 font-semibold">{authSuccess}</div>}
-
-                    <button
-                      type="submit"
-                      disabled={isAuthLoading}
-                      className="w-full rounded-xl bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 py-2.5 text-[11px] font-black uppercase tracking-wider text-black hover:brightness-110 active:scale-95 transition flex items-center justify-center space-x-2 disabled:opacity-75"
-                    >
-                      {isAuthLoading ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin text-black" />
-                          <span>Registering...</span>
-                        </>
-                      ) : (
-                        <span>Authorize Registration</span>
-                      )}
-                    </button>
-
-                    <p className="text-center text-[#8daaa3] text-[11px] mt-4">
-                      Already have an account?{' '}
-                      <button type="button" disabled={isAuthLoading} onClick={() => setAuthMode('login')} className="text-yellow-400 font-extrabold hover:underline disabled:opacity-50">Log In</button>
-                    </p>
-                  </form>
-                </>
-              )}
-
-              {authMode === 'forgot' && (
-                <>
-                  <div className="text-center space-y-1">
-                    <span className="shiny-logo-text text-lg block italic">BETEPRO.COM</span>
-                    <h3 className="text-md font-black text-white">Reset Account Key</h3>
-                    <p className="text-[11px] text-[#8daaa3]">Input email to recover your credentials</p>
                   </div>
 
-                  <form onSubmit={handleForgotSubmit} className="space-y-4 text-xs text-slate-200">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-[#8daaa3] uppercase">Email Address</label>
+                  <button
+                    type="submit"
+                    disabled={isAuthLoading}
+                    className="w-full rounded-2xl bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 py-3 text-xs font-black uppercase tracking-wider text-black hover:brightness-110 active:scale-95 transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-75 cursor-pointer shadow-lg shadow-yellow-500/10"
+                  >
+                    {isAuthLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin text-black" />
+                        <span>Processing Account...</span>
+                      </>
+                    ) : (
+                      <span>Authorize Registration</span>
+                    )}
+                  </button>
+                </form>
+              )}
+
+              {/* FORGOT PASSWORD VIEW */}
+              {authMode === 'forgot' && (
+                <form onSubmit={handleForgotSubmit} className="space-y-4 text-xs text-slate-200">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-extrabold text-[#8daaa3] uppercase tracking-wider">
+                      Email Address
+                    </label>
+                    <div className="relative rounded-2xl bg-[#011410] border border-[#0e4b3c] focus-within:border-yellow-400 focus-within:bg-[#02211a] transition-all duration-300 p-3 flex items-center gap-3">
+                      <Mail className="h-4 w-4 text-yellow-400/80 shrink-0" />
                       <input
                         type="email"
                         required
                         disabled={isAuthLoading}
                         placeholder="yourname@gmail.com"
-                        className="w-full rounded-xl bg-[#053d30] border border-[#0e4b3c] p-3 text-white placeholder-slate-400/50 focus:border-yellow-400 focus:bg-[#074c3d] focus:outline-none transition duration-200 disabled:opacity-50"
+                        className="w-full bg-transparent text-sm text-white font-medium placeholder-slate-400/40 focus:outline-none disabled:opacity-50"
                       />
                     </div>
+                  </div>
 
-                    {authSuccess && <div className="p-2.5 rounded-lg bg-emerald-950/40 text-emerald-400 border border-emerald-900/40 font-semibold">{authSuccess}</div>}
+                  <button
+                    type="submit"
+                    disabled={isAuthLoading}
+                    className="w-full rounded-2xl bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 py-3 text-xs font-black uppercase tracking-wider text-black hover:brightness-110 active:scale-95 transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-75 cursor-pointer shadow-lg shadow-yellow-500/10"
+                  >
+                    {isAuthLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin text-black" />
+                        <span>Sending Link...</span>
+                      </>
+                    ) : (
+                      <span>Send Recovery Passcode</span>
+                    )}
+                  </button>
 
-                    <button
-                      type="submit"
-                      disabled={isAuthLoading}
-                      className="w-full rounded-xl bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 py-2.5 text-[11px] font-black uppercase tracking-wider text-black hover:brightness-110 active:scale-95 transition flex items-center justify-center space-x-2 disabled:opacity-75"
-                    >
-                      {isAuthLoading ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin text-black" />
-                          <span>Sending link...</span>
-                        </>
-                      ) : (
-                        <span>Send Password Key</span>
-                      )}
-                    </button>
-
-                    <button type="button" disabled={isAuthLoading} onClick={() => setAuthMode('login')} className="w-full text-center text-[#8daaa3] text-[11px] font-extrabold hover:underline mt-2 disabled:opacity-50">Back to login</button>
-                  </form>
-                </>
+                  <button 
+                    type="button" 
+                    disabled={isAuthLoading} 
+                    onClick={() => setAuthMode('login')} 
+                    className="w-full text-center text-[#8daaa3] text-[11px] font-extrabold hover:underline mt-2 disabled:opacity-50 cursor-pointer block"
+                  >
+                    Back to Player Login
+                  </button>
+                </form>
               )}
 
             </motion.div>
