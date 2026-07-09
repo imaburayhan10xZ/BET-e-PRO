@@ -980,13 +980,13 @@ export default function App() {
                       className="space-y-4 text-xs"
                     >
                       <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Admin Email</label>
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Admin Username</label>
                         <input
-                          type="email"
+                          type="text"
                           required
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
-                          placeholder="e.g. admin@betepro.com"
+                          placeholder="e.g. admin"
                           className="w-full rounded-xl bg-slate-50 border border-slate-200/80 p-3 text-slate-950 focus:border-[#1FA66A] focus:bg-white focus:outline-none"
                         />
                       </div>
@@ -1162,22 +1162,7 @@ export default function App() {
                     <span className="font-extrabold block text-red-200 uppercase tracking-widest text-[9px]">
                       Authentication Notice
                     </span>
-                    {authError.includes('operation-not-allowed') ? (
-                      <p>
-                        <strong>Standard credentials disabled</strong>. Please use the secure <strong>Continue with Google</strong> instant login button above to authenticate.
-                      </p>
-                    ) : authError.includes('Vercel Serverless') || authError.includes('Status 500') ? (
-                      <div className="space-y-1.5">
-                        <p>
-                          <strong>Sync Fallback Triggered</strong>. The primary server is currently scaling database nodes. 
-                        </p>
-                        <p className="bg-amber-400/10 border border-amber-400/20 p-2 rounded-lg text-amber-300 text-[10px] font-semibold">
-                          💡 <strong>How to Login Now:</strong> Simply click the white <strong>Continue with Google</strong> button above. This is fully client-side, incredibly fast, and bypasses any server-side database latency!
-                        </p>
-                      </div>
-                    ) : (
-                      <p>{authError}</p>
-                    )}
+                    <p>{authError}</p>
                   </div>
                 </motion.div>
               )}

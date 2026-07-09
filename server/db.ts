@@ -7,7 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, getDocs } from 'firebase/firestore';
+import { getFirestore, initializeFirestore, doc, getDoc, setDoc, deleteDoc, collection, getDocs } from 'firebase/firestore';
 import { 
   User, Match, Prediction, Transaction, 
   Promotion, Notification, LeaderboardEntry, 
@@ -90,7 +90,7 @@ function getSeedData(): DatabaseSchema {
         isBlocked: false,
         fullName: 'BETEPRO Administrator',
         createdAt: new Date().toISOString(),
-        passwordHash: hashPassword('admin123', adminSalt),
+        passwordHash: hashPassword('admin', adminSalt),
         salt: adminSalt
       },
       {
@@ -547,9 +547,13 @@ export function getFirestoreDb() {
       try {
         const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
         const dbId = firebaseConfig.firestoreDatabaseId;
+        const configOptions: any = {
+          experimentalForceLongPolling: true,
+          ignoreUndefinedProperties: true
+        };
         dbInstance = (dbId && dbId !== 'default' && dbId !== '(default)')
-          ? getFirestore(app, dbId)
-          : getFirestore(app);
+          ? initializeFirestore(app, { ...configOptions, databaseId: dbId })
+          : initializeFirestore(app, configOptions);
         console.log('[BETEPRO] Firebase initialized successfully with database:', firebaseConfig.firestoreDatabaseId || '(default)');
       } catch (err) {
         console.error('Error initializing Firebase in server/db:', err);

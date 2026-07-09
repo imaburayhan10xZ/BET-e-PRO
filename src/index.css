@@ -104,11 +104,6 @@ select[class*="bg-slate-900"] {
   color: #ffffff;
 }
 
-/* IMPORTANT: If a Tailwind text color utility class is present on the input/select/textarea, let it override anything! */
-input[class*="text-"], select[class*="text-"], textarea[class*="text-"] {
-  color: currentColor !important;
-}
-
 /* Chrome/Safari Autofill Styles to prevent black text or ugly backgrounds on dark fields */
 input:-webkit-autofill,
 input:-webkit-autofill:hover, 
