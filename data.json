@@ -1,0 +1,183 @@
+{
+  "users": [
+    {
+      "id": "user_4xtq6cegf",
+      "vipLevel": 0,
+      "fullName": "fwr",
+      "balance": 70,
+      "createdAt": "2026-07-08T05:32:10.905Z",
+      "phone": "01722118924",
+      "salt": "9f93f13d7c7bac940e53cd75e9185bb2",
+      "vipPoints": 0,
+      "role": "primary_admin",
+      "email": "aburayhan10x@gmail.com",
+      "passwordHash": "f98ead2a180aacdee0d2f79317b2a165c49ab2775ab66f7ebe2977e038c17eac0973def4b8ba24ff672306bfa199bb4f23311e25f645516baf64363e2fa686ca",
+      "username": "fwr",
+      "isBlocked": false,
+      "referralCode": "BET-FWR674"
+    }
+  ],
+  "matches": [],
+  "predictions": [],
+  "transactions": [
+    {
+      "id": "tx_2qw495t8x",
+      "amount": 100,
+      "description": "Plinko: Bet ৳100 at HIGH risk. Path landed in bucket 6. Multiplier: 0.5x. Payout ৳50",
+      "username": "fwr",
+      "createdAt": "2026-07-08T06:12:12.972Z",
+      "type": "bet",
+      "userId": "user_4xtq6cegf",
+      "status": "success"
+    },
+    {
+      "id": "tx_8hsot1kap",
+      "description": "Plinko: Bet ৳100 at HIGH risk. Path landed in bucket 4. Multiplier: 0.5x. Payout ৳50",
+      "amount": 100,
+      "userId": "user_4xtq6cegf",
+      "username": "fwr",
+      "type": "bet",
+      "createdAt": "2026-07-08T06:11:52.002Z",
+      "status": "success"
+    },
+    {
+      "id": "tx_adbznspnx",
+      "amount": 100,
+      "description": "Plinko: Bet ৳100 at MEDIUM risk. Path landed in bucket 4. Multiplier: 0.9x. Payout ৳90",
+      "username": "fwr",
+      "createdAt": "2026-07-08T06:11:41.495Z",
+      "type": "bet",
+      "userId": "user_4xtq6cegf",
+      "status": "success"
+    },
+    {
+      "id": "tx_bzk91ap0r",
+      "status": "success",
+      "userId": "user_4xtq6cegf",
+      "createdAt": "2026-07-08T06:11:34.646Z",
+      "type": "bet",
+      "username": "fwr",
+      "description": "Plinko: Bet ৳100 at MEDIUM risk. Path landed in bucket 4. Multiplier: 0.9x. Payout ৳90",
+      "amount": 100
+    },
+    {
+      "id": "tx_gf0vppe4r",
+      "username": "fwr",
+      "createdAt": "2026-07-08T06:11:31.823Z",
+      "type": "bet",
+      "userId": "user_4xtq6cegf",
+      "status": "success",
+      "amount": 100,
+      "description": "Plinko: Bet ৳100 at MEDIUM risk. Path landed in bucket 5. Multiplier: 0.4x. Payout ৳40"
+    },
+    {
+      "id": "tx_hxfhka9r0",
+      "amount": 100,
+      "description": "Plinko: Bet ৳100 at HIGH risk. Path landed in bucket 5. Multiplier: 0.1x. Payout ৳10",
+      "createdAt": "2026-07-08T06:12:09.875Z",
+      "type": "bet",
+      "username": "fwr",
+      "userId": "user_4xtq6cegf",
+      "status": "success"
+    },
+    {
+      "id": "tx_j5gm5ewat",
+      "status": "success",
+      "username": "fwr",
+      "type": "bet",
+      "createdAt": "2026-07-08T06:11:37.701Z",
+      "userId": "user_4xtq6cegf",
+      "amount": 100,
+      "description": "Plinko: Bet ৳100 at MEDIUM risk. Path landed in bucket 5. Multiplier: 0.4x. Payout ৳40"
+    },
+    {
+      "id": "tx_nlcdxv6lc",
+      "description": "Plinko: Bet ৳100 at HIGH risk. Path landed in bucket 4. Multiplier: 0.5x. Payout ৳50",
+      "amount": 100,
+      "status": "success",
+      "userId": "user_4xtq6cegf",
+      "username": "fwr",
+      "createdAt": "2026-07-08T06:11:54.430Z",
+      "type": "bet"
+    },
+    {
+      "id": "tx_q9ml3r6i8",
+      "amount": 100,
+      "description": "Plinko: Bet ৳100 at HIGH risk. Path landed in bucket 6. Multiplier: 0.5x. Payout ৳50",
+      "status": "success",
+      "username": "fwr",
+      "createdAt": "2026-07-08T06:12:16.380Z",
+      "type": "bet",
+      "userId": "user_4xtq6cegf"
+    },
+    {
+      "id": "tx_t1t2hqhjw",
+      "userId": "user_4xtq6cegf",
+      "username": "fwr",
+      "type": "win",
+      "createdAt": "2026-07-08T06:12:00.527Z",
+      "status": "success",
+      "description": "Plinko: Bet ৳100 at HIGH risk. Path landed in bucket 7. Multiplier: 1.8x. Payout ৳180",
+      "amount": 80
+    },
+    {
+      "id": "tx_u0qjjpsgl",
+      "amount": 100,
+      "description": "Plinko: Bet ৳100 at MEDIUM risk. Path landed in bucket 6. Multiplier: 0.9x. Payout ৳90",
+      "username": "fwr",
+      "type": "bet",
+      "createdAt": "2026-07-08T06:11:45.002Z",
+      "userId": "user_4xtq6cegf",
+      "status": "success"
+    },
+    {
+      "id": "tx_y48rhbpa7",
+      "description": "Plinko: Bet ৳100 at MEDIUM risk. Path landed in bucket 4. Multiplier: 0.9x. Payout ৳90",
+      "amount": 100,
+      "status": "success",
+      "userId": "user_4xtq6cegf",
+      "username": "fwr",
+      "type": "bet",
+      "createdAt": "2026-07-08T06:11:39.557Z"
+    },
+    {
+      "id": "tx_yme627nrp",
+      "description": "Plinko: Bet ৳100 at MEDIUM risk. Path landed in bucket 5. Multiplier: 0.4x. Payout ৳40",
+      "amount": 100,
+      "status": "success",
+      "userId": "user_4xtq6cegf",
+      "username": "fwr",
+      "createdAt": "2026-07-08T06:11:48.638Z",
+      "type": "bet"
+    }
+  ],
+  "promotions": [],
+  "notifications": [
+    {
+      "id": "notif_2m3u9uozu",
+      "message": "Thanks for joining us, fwr! We have credited a promotional ৳500 to your wallet. Dive into live sports betting and casino games!",
+      "title": "🎁 Welcome to BETEPRO!",
+      "read": true,
+      "createdAt": "2026-07-08T05:32:10.905Z",
+      "userId": "user_4xtq6cegf"
+    }
+  ],
+  "leaderboard": [],
+  "supportTickets": [],
+  "news": [],
+  "settings": {
+    "minWithdraw": 500,
+    "bKashNumber": "01700000000",
+    "marqueeNotice": "🎁🎁🎁 BETEPRO-তে স্বাগতম! নগদের মাধ্যমে প্রতিটি ডিপোজিটে ১.৫% বোনাস সরাসরি ওয়ালেট ব্যালেন্সে ইনস্ট্যান্ট যুক্ত হচ্ছে! এছাড়া রেফার করুন এবং প্রতি রেফারে ২০০ টাকা ফ্রি বোনাস লুফে নিন! 🎁🎁🎁",
+    "maintenanceMode": false,
+    "userWinningPercentage": 10,
+    "rocketNumber": "01900000000",
+    "nagadNumber": "01800000000",
+    "referralBonus": 5,
+    "siteName": "BETEPRO",
+    "minDeposit": 200,
+    "maxWinPercentageOfDeposit": 10
+  },
+  "supportChannels": [],
+  "banners": []
+}

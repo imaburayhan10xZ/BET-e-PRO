@@ -723,146 +723,140 @@ export async function syncCollectionToFirestore<T extends { id?: string; usernam
   }
 }
 
-export async function ensureDbLoaded(): Promise<DatabaseSchema> {
-  const now = Date.now();
-  if (isLoaded && cachedDb && (now - lastLoadTime < 5000)) {
+export const loadedFromFirestore: Record<string, boolean> = {};
+let isSettingsLoaded = false;
+
+export async function ensureDbLoaded(reqPath?: string): Promise<DatabaseSchema> {
+  // Determine which collections we want to ensure are loaded from Firestore
+  let keysToLoad: (keyof DatabaseSchema)[] = [
+    'users', 'matches', 'predictions', 'transactions', 'promotions', 
+    'notifications', 'leaderboard', 'supportTickets', 'news', 'supportChannels', 'banners'
+  ];
+  
+  if (reqPath) {
+    const p = reqPath.toLowerCase();
+    if (p.includes('/api/auth') || p.includes('/api/games') || p.includes('/api/mines') || p.includes('/api/blackjack') || p.includes('/api/crash') || p.includes('/api/dice') || p.includes('/api/slots') || p.includes('/api/roulette') || p.includes('/api/wheel')) {
+      keysToLoad = ['users'];
+    } else if (p.includes('/api/matches')) {
+      keysToLoad = ['matches', 'predictions'];
+    } else if (p.includes('/api/predictions')) {
+      keysToLoad = ['predictions', 'users', 'matches'];
+    } else if (p.includes('/api/transactions')) {
+      keysToLoad = ['transactions', 'users'];
+    } else if (p.includes('/api/promotions')) {
+      keysToLoad = ['promotions'];
+    } else if (p.includes('/api/notifications')) {
+      keysToLoad = ['notifications'];
+    } else if (p.includes('/api/leaderboard')) {
+      keysToLoad = ['users', 'leaderboard'];
+    } else if (p.includes('/api/support')) {
+      keysToLoad = ['supportTickets', 'supportChannels'];
+    } else if (p.includes('/api/news')) {
+      keysToLoad = ['news'];
+    } else if (p.includes('/api/banners')) {
+      keysToLoad = ['banners'];
+    } else if (p.includes('/api/admin')) {
+      keysToLoad = [
+        'users', 'matches', 'predictions', 'transactions', 'promotions', 
+        'notifications', 'leaderboard', 'supportTickets', 'news', 'supportChannels', 'banners'
+      ];
+    } else {
+      keysToLoad = ['users'];
+    }
+  } else {
+    keysToLoad = ['users'];
+  }
+
+  // If cachedDb is not initialized, load it from local JSON first
+  if (!cachedDb) {
+    cachedDb = readLocalDb();
+  }
+
+  const firestore = getFirestoreDb();
+  if (!firestore) {
+    console.warn('Firestore is not configured. Falling back to local DB.');
+    isLoaded = true;
     return cachedDb;
   }
 
-  if (isLoading && loadPromise) {
-    return loadPromise;
+  // Load settings once
+  if (!isSettingsLoaded) {
+    try {
+      const systemDoc = await getDoc(doc(firestore, 'settings', 'system'));
+      if (systemDoc.exists()) {
+        cachedDb.settings = systemDoc.data() as SystemSettings;
+      } else {
+        console.log('[BETEPRO] Settings document not found in system. Seeding default...');
+        await setDoc(doc(firestore, 'settings', 'system'), DEFAULT_SETTINGS);
+        cachedDb.settings = DEFAULT_SETTINGS;
+      }
+      isSettingsLoaded = true;
+    } catch (err) {
+      console.error('[BETEPRO] Failed to fetch settings from Firestore:', err);
+    }
   }
 
-  isLoading = true;
-  loadPromise = (async () => {
-    const firestore = getFirestoreDb();
-    if (!firestore) {
-      console.warn('Firestore is not configured. Falling back to local DB.');
-      cachedDb = readLocalDb();
-      isLoaded = true;
-      isLoading = false;
-      lastLoadTime = Date.now();
-      return cachedDb;
-    }
+  // Filter out keys that are already loaded
+  const unloadedKeys = keysToLoad.filter(k => !loadedFromFirestore[k]);
 
-    console.log('[BETEPRO] Fetching database state from Firestore...');
-    try {
-      const listCollections: { key: keyof DatabaseSchema; idKey: string }[] = [
-        { key: 'users', idKey: 'id' },
-        { key: 'matches', idKey: 'id' },
-        { key: 'predictions', idKey: 'id' },
-        { key: 'transactions', idKey: 'id' },
-        { key: 'promotions', idKey: 'id' },
-        { key: 'notifications', idKey: 'id' },
-        { key: 'leaderboard', idKey: 'username' },
-        { key: 'supportTickets', idKey: 'id' },
-        { key: 'news', idKey: 'id' },
-        { key: 'supportChannels', idKey: 'id' },
-        { key: 'banners', idKey: 'id' }
-      ];
+  if (unloadedKeys.length === 0) {
+    isLoaded = true;
+    return cachedDb;
+  }
 
-      const newDb: any = {
-        users: [],
-        matches: [],
-        predictions: [],
-        transactions: [],
-        promotions: [],
-        notifications: [],
-        leaderboard: [],
-        supportTickets: [],
-        news: [],
-        settings: DEFAULT_SETTINGS,
-        supportChannels: [],
-        banners: []
-      };
+  console.log(`[BETEPRO] Lazily fetching ${unloadedKeys.join(', ')} from Firestore...`);
+  
+  const listCollections: { key: keyof DatabaseSchema; idKey: string }[] = [
+    { key: 'users', idKey: 'id' },
+    { key: 'matches', idKey: 'id' },
+    { key: 'predictions', idKey: 'id' },
+    { key: 'transactions', idKey: 'id' },
+    { key: 'promotions', idKey: 'id' },
+    { key: 'notifications', idKey: 'id' },
+    { key: 'leaderboard', idKey: 'username' },
+    { key: 'supportTickets', idKey: 'id' },
+    { key: 'news', idKey: 'id' },
+    { key: 'supportChannels', idKey: 'id' },
+    { key: 'banners', idKey: 'id' }
+  ];
 
-      // Fetch all collections in parallel!
-      await Promise.all([
-        ...listCollections.map(async ({ key, idKey }) => {
-          try {
-            const querySnapshot = await getDocs(collection(firestore, key));
-            const items: any[] = [];
-            querySnapshot.forEach((docSnap) => {
-              items.push({ [idKey]: docSnap.id, ...docSnap.data() });
-            });
+  try {
+    await Promise.all(
+      unloadedKeys.map(async (key) => {
+        const colConfig = listCollections.find(c => c.key === key);
+        if (!colConfig) return;
 
-            // Ensure aburayhan10x@gmail.com and admin role settings are respected
-            if (key === 'users') {
-              items.forEach(u => {
-                const emailLower = u.email?.toLowerCase();
-                if (u.username === 'admin' || emailLower === 'admin@betepro.com' || emailLower === 'aburayhan10x@gmail.com') {
-                  u.role = 'primary_admin';
-                }
-              });
-            }
-
-            newDb[key] = items;
-          } catch (err) {
-            console.error(`[BETEPRO] Failed to fetch collection ${key} from Firestore:`, err);
-            // Fallback to local DB list for this key if it fails
-            const local = readLocalDb();
-            newDb[key] = local[key] || [];
-          }
-        }),
-        // Fetch settings document
-        (async () => {
-          try {
-            const systemDoc = await getDoc(doc(firestore, 'settings', 'system'));
-            if (systemDoc.exists()) {
-              newDb.settings = systemDoc.data() as SystemSettings;
-            } else {
-              console.log('[BETEPRO] Settings document not found in system. Seeding default...');
-              await setDoc(doc(firestore, 'settings', 'system'), DEFAULT_SETTINGS);
-              newDb.settings = DEFAULT_SETTINGS;
-            }
-          } catch (err) {
-            console.error('[BETEPRO] Failed to fetch settings from Firestore:', err);
-            const local = readLocalDb();
-            newDb.settings = local.settings || DEFAULT_SETTINGS;
-          }
-        })()
-      ]);
-
-      // Seed if empty
-      if (newDb.users.length === 0 && newDb.matches.length === 0) {
-        console.log('[BETEPRO] Firestore database is empty. Seeding default dataset now...');
-        const defaultData = readLocalDb();
-        const seedPromises: Promise<any>[] = [];
-
-        listCollections.forEach(({ key, idKey }) => {
-          const list = defaultData[key] as any[];
-          list.forEach(item => {
-            const id = item[idKey];
-            if (id) {
-              seedPromises.push(setDoc(doc(firestore, key, id), item));
-            }
+        try {
+          const querySnapshot = await getDocs(collection(firestore, key));
+          const items: any[] = [];
+          querySnapshot.forEach((docSnap) => {
+            items.push({ [colConfig.idKey]: docSnap.id, ...docSnap.data() });
           });
-        });
 
-        seedPromises.push(setDoc(doc(firestore, 'settings', 'system'), defaultData.settings));
-        await Promise.all(seedPromises);
-        console.log('[BETEPRO] Successfully seeded Firestore!');
-        cachedDb = defaultData;
-      } else {
-        cachedDb = newDb;
-      }
+          if (key === 'users') {
+            items.forEach(u => {
+              const emailLower = u.email?.toLowerCase();
+              if (u.username === 'admin' || emailLower === 'admin@betepro.com' || emailLower === 'aburayhan10x@gmail.com') {
+                u.role = 'primary_admin';
+              }
+            });
+          }
 
-      writeLocalDb(cachedDb!);
-      isLoaded = true;
-      isLoading = false;
-      lastLoadTime = Date.now();
-      return cachedDb!;
-    } catch (err) {
-      console.error('[BETEPRO] Error fetching from Firestore, falling back to local DB:', err);
-      cachedDb = readLocalDb();
-      isLoaded = true;
-      isLoading = false;
-      lastLoadTime = Date.now();
-      return cachedDb;
-    }
-  })();
+          cachedDb![key] = items as any;
+          loadedFromFirestore[key] = true;
+        } catch (err) {
+          console.error(`[BETEPRO] Failed to fetch collection ${key} from Firestore:`, err);
+        }
+      })
+    );
+  } catch (err) {
+    console.error('[BETEPRO] Error during parallel lazy load:', err);
+  }
 
-  return loadPromise;
+  writeLocalDb(cachedDb!);
+  isLoaded = true;
+  lastLoadTime = Date.now();
+  return cachedDb;
 }
 
 export function readDb(): DatabaseSchema {
@@ -881,22 +875,36 @@ export async function writeDb(data: DatabaseSchema): Promise<void> {
   if (!firestore) return;
 
   try {
-    await Promise.all([
-      syncCollectionToFirestore('users', data.users, oldDb.users, 'id'),
-      syncCollectionToFirestore('matches', data.matches, oldDb.matches, 'id'),
-      syncCollectionToFirestore('predictions', data.predictions, oldDb.predictions, 'id'),
-      syncCollectionToFirestore('transactions', data.transactions, oldDb.transactions, 'id'),
-      syncCollectionToFirestore('promotions', data.promotions, oldDb.promotions, 'id'),
-      syncCollectionToFirestore('notifications', data.notifications, oldDb.notifications, 'id'),
-      syncCollectionToFirestore('leaderboard', data.leaderboard, oldDb.leaderboard, 'username'),
-      syncCollectionToFirestore('supportTickets', data.supportTickets, oldDb.supportTickets, 'id'),
-      syncCollectionToFirestore('news', data.news, oldDb.news, 'id'),
-      syncCollectionToFirestore('supportChannels', data.supportChannels, oldDb.supportChannels, 'id'),
-      syncCollectionToFirestore('banners', data.banners, oldDb.banners, 'id')
-    ]);
+    const promises: Promise<any>[] = [];
+    
+    const collectionsToSync: { key: keyof DatabaseSchema; idKey: string }[] = [
+      { key: 'users', idKey: 'id' },
+      { key: 'matches', idKey: 'id' },
+      { key: 'predictions', idKey: 'id' },
+      { key: 'transactions', idKey: 'id' },
+      { key: 'promotions', idKey: 'id' },
+      { key: 'notifications', idKey: 'id' },
+      { key: 'leaderboard', idKey: 'username' },
+      { key: 'supportTickets', idKey: 'id' },
+      { key: 'news', idKey: 'id' },
+      { key: 'supportChannels', idKey: 'id' },
+      { key: 'banners', idKey: 'id' }
+    ];
 
-    if (JSON.stringify(data.settings) !== JSON.stringify(oldDb.settings)) {
-      await setDoc(doc(firestore, 'settings', 'system'), JSON.parse(JSON.stringify(data.settings)));
+    collectionsToSync.forEach(({ key, idKey }) => {
+      if (loadedFromFirestore[key]) {
+        promises.push(syncCollectionToFirestore(key, data[key] as any[], oldDb[key] as any[], idKey));
+      }
+    });
+
+    if (loadedFromFirestore['settings'] || isSettingsLoaded) {
+      if (JSON.stringify(data.settings) !== JSON.stringify(oldDb.settings)) {
+        promises.push(setDoc(doc(firestore, 'settings', 'system'), JSON.parse(JSON.stringify(data.settings))));
+      }
+    }
+
+    if (promises.length > 0) {
+      await Promise.all(promises);
     }
   } catch (err) {
     console.error('[BETEPRO] Async Firestore collection sync failed:', err);

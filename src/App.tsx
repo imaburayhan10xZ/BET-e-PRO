@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Trophy, Flame, Bell, Globe, Sparkles, Star, Users, Phone, ShieldCheck, 
-  HelpCircle, ChevronDown, CheckCircle2, AlertCircle, Play, ArrowRight, Wallet, Info, Mail, X
+  HelpCircle, ChevronDown, CheckCircle2, AlertCircle, Play, ArrowRight, Wallet, Info, Mail, X, Loader2
 } from 'lucide-react';
 import { User, Notification, Match, Promotion } from './types';
 import { translations, Language } from './utils/lang';
@@ -59,6 +59,7 @@ export default function App() {
   const [referralCode, setReferralCode] = useState('');
   const [authError, setAuthError] = useState('');
   const [authSuccess, setAuthSuccess] = useState('');
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
 
   // Slider state
   const [activeSlide, setActiveSlide] = useState(0);
@@ -203,6 +204,7 @@ export default function App() {
     e.preventDefault();
     setAuthError('');
     setAuthSuccess('');
+    setIsAuthLoading(true);
 
     try {
       let res;
@@ -234,7 +236,11 @@ export default function App() {
       } else {
         const textResponse = await res.text();
         console.error('[AUTH] Received non-JSON response during login:', textResponse);
-        throw new Error('Our backend services are initializing or undergoing maintenance. Please wait 10 seconds and try again.');
+        let errorSnippet = textResponse.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 150);
+        if (textResponse.includes('FUNCTION_INVOCATION_FAILED')) {
+          errorSnippet = 'Vercel Serverless Function Invocation Failed (please check server/db setup or logs).';
+        }
+        throw new Error(`Server connection issue (Status ${res.status}): ${errorSnippet || 'Please try again in 10 seconds.'}`);
       }
 
       if (res.ok) {
@@ -252,6 +258,8 @@ export default function App() {
     } catch (err: any) {
       console.error(err);
       setAuthError(err.message || 'Authentication failed.');
+    } finally {
+      setIsAuthLoading(false);
     }
   };
 
@@ -259,6 +267,7 @@ export default function App() {
     e.preventDefault();
     setAuthError('');
     setAuthSuccess('');
+    setIsAuthLoading(true);
 
     try {
       let res;
@@ -301,7 +310,11 @@ export default function App() {
       } else {
         const textResponse = await res.text();
         console.error('[AUTH] Received non-JSON response during registration:', textResponse);
-        throw new Error('Our backend services are initializing or undergoing maintenance. Please wait 10 seconds and try again.');
+        let errorSnippet = textResponse.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 150);
+        if (textResponse.includes('FUNCTION_INVOCATION_FAILED')) {
+          errorSnippet = 'Vercel Serverless Function Invocation Failed (please check server/db setup or logs).';
+        }
+        throw new Error(`Server connection issue (Status ${res.status}): ${errorSnippet || 'Please try again in 10 seconds.'}`);
       }
 
       if (res.ok) {
@@ -330,6 +343,8 @@ export default function App() {
       } else {
         setAuthError(err.message || 'Failed to register account.');
       }
+    } finally {
+      setIsAuthLoading(false);
     }
   };
 
@@ -337,6 +352,7 @@ export default function App() {
     e.preventDefault();
     setAuthError('');
     setAuthSuccess('');
+    setIsAuthLoading(true);
 
     try {
       await sendPasswordResetEmail(firebaseAuth, email);
@@ -344,12 +360,15 @@ export default function App() {
     } catch (err: any) {
       console.error(err);
       setAuthError(err.message || 'Failed to send recovery email.');
+    } finally {
+      setIsAuthLoading(false);
     }
   };
 
   const handleGoogleSignIn = async () => {
     setAuthError('');
     setAuthSuccess('');
+    setIsAuthLoading(true);
     try {
       const provider = new GoogleAuthProvider();
       const userCredential = await signInWithPopup(firebaseAuth, provider);
@@ -372,7 +391,11 @@ export default function App() {
       } else {
         const textResponse = await res.text();
         console.error('[AUTH] Received non-JSON response during Google Sign-In sync:', textResponse);
-        throw new Error('Our backend services are initializing or undergoing maintenance. Please wait 10 seconds and try again.');
+        let errorSnippet = textResponse.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 150);
+        if (textResponse.includes('FUNCTION_INVOCATION_FAILED')) {
+          errorSnippet = 'Vercel Serverless Function Invocation Failed (please check server/db setup or logs).';
+        }
+        throw new Error(`Server connection issue (Status ${res.status}): ${errorSnippet || 'Please try again in 10 seconds.'}`);
       }
 
       if (res.ok) {
@@ -392,6 +415,8 @@ export default function App() {
       } else {
         setAuthError(err.message || 'Google Auth failed.');
       }
+    } finally {
+      setIsAuthLoading(false);
     }
   };
 
@@ -1122,7 +1147,7 @@ export default function App() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-[#03211a] border border-[#0e4b3c] rounded-3xl max-w-sm w-full p-6 space-y-4 relative shadow-2xl text-white"
+              className="bg-[#03211a] border border-[#0e4b3c] rounded-3xl max-w-sm w-full p-6 space-y-4 relative shadow-2xl text-white max-h-[90vh] overflow-y-auto"
             >
               <button 
                 type="button"
@@ -1146,7 +1171,8 @@ export default function App() {
                     <button
                       type="button"
                       onClick={handleGoogleSignIn}
-                      className="w-full flex items-center justify-center space-x-2.5 rounded-xl bg-white text-black py-2.5 text-xs font-black hover:bg-slate-100 active:scale-95 transition duration-200"
+                      disabled={isAuthLoading}
+                      className="w-full flex items-center justify-center space-x-2.5 rounded-xl bg-white text-black py-2.5 text-xs font-black hover:bg-slate-100 active:scale-95 transition duration-200 disabled:opacity-50"
                     >
                       <svg className="h-4 w-4 bg-white rounded-full p-0.5" viewBox="0 0 24 24" fill="none">
                         <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
@@ -1174,25 +1200,27 @@ export default function App() {
                       <input
                         type="text"
                         required
+                        disabled={isAuthLoading}
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="yourname@gmail.com or username"
-                        className="w-full rounded-xl bg-[#053d30] border border-[#0e4b3c] p-3 text-white placeholder-slate-400/50 focus:border-yellow-400 focus:bg-[#074c3d] focus:outline-none transition duration-200"
+                        className="w-full rounded-xl bg-[#053d30] border border-[#0e4b3c] p-3 text-white placeholder-slate-400/50 focus:border-yellow-400 focus:bg-[#074c3d] focus:outline-none transition duration-200 disabled:opacity-50"
                       />
                     </div>
 
                     <div className="space-y-1">
                       <div className="flex justify-between items-center">
                         <label className="text-[10px] font-bold text-[#8daaa3] uppercase">Secure Password</label>
-                        <button type="button" onClick={() => setAuthMode('forgot')} className="text-[9px] font-black text-yellow-400 uppercase hover:underline">Forgot?</button>
+                        <button type="button" disabled={isAuthLoading} onClick={() => setAuthMode('forgot')} className="text-[9px] font-black text-yellow-400 uppercase hover:underline disabled:opacity-50">Forgot?</button>
                       </div>
                       <input
                         type="password"
                         required
+                        disabled={isAuthLoading}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••"
-                        className="w-full rounded-xl bg-[#053d30] border border-[#0e4b3c] p-3 text-white placeholder-slate-400/50 focus:border-yellow-400 focus:bg-[#074c3d] focus:outline-none transition duration-200"
+                        className="w-full rounded-xl bg-[#053d30] border border-[#0e4b3c] p-3 text-white placeholder-slate-400/50 focus:border-yellow-400 focus:bg-[#074c3d] focus:outline-none transition duration-200 disabled:opacity-50"
                       />
                     </div>
 
@@ -1209,14 +1237,22 @@ export default function App() {
 
                     <button
                       type="submit"
-                      className="w-full rounded-xl bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 py-2.5 text-[11px] font-black uppercase tracking-wider text-black hover:brightness-110 active:scale-95 transition"
+                      disabled={isAuthLoading}
+                      className="w-full rounded-xl bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 py-2.5 text-[11px] font-black uppercase tracking-wider text-black hover:brightness-110 active:scale-95 transition flex items-center justify-center space-x-2 disabled:opacity-75"
                     >
-                      Authenticate Account
+                      {isAuthLoading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin text-black" />
+                          <span>Authenticating...</span>
+                        </>
+                      ) : (
+                        <span>Authenticate Account</span>
+                      )}
                     </button>
 
                     <p className="text-center text-[#8daaa3] text-[11px]">
                       Don't have a profile?{' '}
-                      <button type="button" onClick={() => setAuthMode('register')} className="text-yellow-400 font-extrabold hover:underline">Register Free</button>
+                      <button type="button" disabled={isAuthLoading} onClick={() => setAuthMode('register')} className="text-yellow-400 font-extrabold hover:underline disabled:opacity-50">Register Free</button>
                     </p>
                   </form>
                 </>
@@ -1235,7 +1271,8 @@ export default function App() {
                     <button
                       type="button"
                       onClick={handleGoogleSignIn}
-                      className="w-full flex items-center justify-center space-x-2.5 rounded-xl bg-white text-black py-2.5 text-xs font-black hover:bg-slate-100 active:scale-95 transition duration-200"
+                      disabled={isAuthLoading}
+                      className="w-full flex items-center justify-center space-x-2.5 rounded-xl bg-white text-black py-2.5 text-xs font-black hover:bg-slate-100 active:scale-95 transition duration-200 disabled:opacity-50"
                     >
                       <svg className="h-4 w-4 bg-white rounded-full p-0.5" viewBox="0 0 24 24" fill="none">
                         <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
@@ -1263,10 +1300,11 @@ export default function App() {
                       <input
                         type="text"
                         required
+                        disabled={isAuthLoading}
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
                         placeholder="e.g. sakib_boss"
-                        className="w-full rounded-xl bg-[#053d30] border border-[#0e4b3c] p-3 text-white placeholder-slate-400/50 focus:border-yellow-400 focus:bg-[#074c3d] focus:outline-none transition duration-200"
+                        className="w-full rounded-xl bg-[#053d30] border border-[#0e4b3c] p-3 text-white placeholder-slate-400/50 focus:border-yellow-400 focus:bg-[#074c3d] focus:outline-none transition duration-200 disabled:opacity-50"
                       />
                     </div>
 
@@ -1275,10 +1313,11 @@ export default function App() {
                       <input
                         type="email"
                         required
+                        disabled={isAuthLoading}
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="sakib@gmail.com"
-                        className="w-full rounded-xl bg-[#053d30] border border-[#0e4b3c] p-3 text-white placeholder-slate-400/50 focus:border-yellow-400 focus:bg-[#074c3d] focus:outline-none transition duration-200"
+                        className="w-full rounded-xl bg-[#053d30] border border-[#0e4b3c] p-3 text-white placeholder-slate-400/50 focus:border-yellow-400 focus:bg-[#074c3d] focus:outline-none transition duration-200 disabled:opacity-50"
                       />
                     </div>
 
@@ -1287,10 +1326,11 @@ export default function App() {
                       <input
                         type="password"
                         required
+                        disabled={isAuthLoading}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••"
-                        className="w-full rounded-xl bg-[#053d30] border border-[#0e4b3c] p-3 text-white placeholder-slate-400/50 focus:border-yellow-400 focus:bg-[#074c3d] focus:outline-none transition duration-200"
+                        className="w-full rounded-xl bg-[#053d30] border border-[#0e4b3c] p-3 text-white placeholder-slate-400/50 focus:border-yellow-400 focus:bg-[#074c3d] focus:outline-none transition duration-200 disabled:opacity-50"
                       />
                     </div>
 
@@ -1298,10 +1338,11 @@ export default function App() {
                       <label className="text-[10px] font-bold text-[#8daaa3] uppercase">Referral Code (Recommended)</label>
                       <input
                         type="text"
+                        disabled={isAuthLoading}
                         value={referralCode}
                         onChange={(e) => setReferralCode(e.target.value)}
                         placeholder="Paste code to get welcome gift"
-                        className="w-full rounded-xl bg-[#053d30] border border-[#0e4b3c] p-3 text-yellow-400 font-bold uppercase placeholder-slate-400/50 focus:border-yellow-400 focus:bg-[#074c3d] focus:outline-none transition duration-200"
+                        className="w-full rounded-xl bg-[#053d30] border border-[#0e4b3c] p-3 text-yellow-400 font-bold uppercase placeholder-slate-400/50 focus:border-yellow-400 focus:bg-[#074c3d] focus:outline-none transition duration-200 disabled:opacity-50"
                       />
                     </div>
 
@@ -1319,14 +1360,22 @@ export default function App() {
 
                     <button
                       type="submit"
-                      className="w-full rounded-xl bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 py-2.5 text-[11px] font-black uppercase tracking-wider text-black hover:brightness-110 active:scale-95 transition"
+                      disabled={isAuthLoading}
+                      className="w-full rounded-xl bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 py-2.5 text-[11px] font-black uppercase tracking-wider text-black hover:brightness-110 active:scale-95 transition flex items-center justify-center space-x-2 disabled:opacity-75"
                     >
-                      Authorize Registration
+                      {isAuthLoading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin text-black" />
+                          <span>Registering...</span>
+                        </>
+                      ) : (
+                        <span>Authorize Registration</span>
+                      )}
                     </button>
 
                     <p className="text-center text-[#8daaa3] text-[11px] mt-4">
                       Already have an account?{' '}
-                      <button type="button" onClick={() => setAuthMode('login')} className="text-yellow-400 font-extrabold hover:underline">Log In</button>
+                      <button type="button" disabled={isAuthLoading} onClick={() => setAuthMode('login')} className="text-yellow-400 font-extrabold hover:underline disabled:opacity-50">Log In</button>
                     </p>
                   </form>
                 </>
@@ -1346,8 +1395,9 @@ export default function App() {
                       <input
                         type="email"
                         required
+                        disabled={isAuthLoading}
                         placeholder="yourname@gmail.com"
-                        className="w-full rounded-xl bg-[#053d30] border border-[#0e4b3c] p-3 text-white placeholder-slate-400/50 focus:border-yellow-400 focus:bg-[#074c3d] focus:outline-none transition duration-200"
+                        className="w-full rounded-xl bg-[#053d30] border border-[#0e4b3c] p-3 text-white placeholder-slate-400/50 focus:border-yellow-400 focus:bg-[#074c3d] focus:outline-none transition duration-200 disabled:opacity-50"
                       />
                     </div>
 
@@ -1355,12 +1405,20 @@ export default function App() {
 
                     <button
                       type="submit"
-                      className="w-full rounded-xl bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 py-2.5 text-[11px] font-black uppercase tracking-wider text-black hover:brightness-110 active:scale-95 transition"
+                      disabled={isAuthLoading}
+                      className="w-full rounded-xl bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 py-2.5 text-[11px] font-black uppercase tracking-wider text-black hover:brightness-110 active:scale-95 transition flex items-center justify-center space-x-2 disabled:opacity-75"
                     >
-                      Send Password Key
+                      {isAuthLoading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin text-black" />
+                          <span>Sending link...</span>
+                        </>
+                      ) : (
+                        <span>Send Password Key</span>
+                      )}
                     </button>
 
-                    <button type="button" onClick={() => setAuthMode('login')} className="w-full text-center text-[#8daaa3] text-[11px] font-extrabold hover:underline mt-2">Back to login</button>
+                    <button type="button" disabled={isAuthLoading} onClick={() => setAuthMode('login')} className="w-full text-center text-[#8daaa3] text-[11px] font-extrabold hover:underline mt-2 disabled:opacity-50">Back to login</button>
                   </form>
                 </>
               )}

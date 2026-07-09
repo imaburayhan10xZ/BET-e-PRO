@@ -32,7 +32,7 @@ export function createApp() {
   // Database initialization middleware to load state from Firestore
   app.use(async (req, res, next) => {
     try {
-      await ensureDbLoaded();
+      await ensureDbLoaded(req.path);
     } catch (err) {
       console.error('[BETEPRO] Database load error:', err);
     }
