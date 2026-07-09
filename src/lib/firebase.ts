@@ -9,8 +9,8 @@ const firebaseConfig = {
   projectId: "beteproodb",
   storageBucket: "beteproodb.firebasestorage.app",
   messagingSenderId: "115750551989",
-  appId: "1:115750551989:web:b1a88d15c412524ada59fc",
-  measurementId: "G-MJ9HMS5THX"
+  appId: "1:115750551989:web:b06054d72482fcafda59fc",
+  measurementId: ""
 };
 
 const app = initializeApp(firebaseConfig);
