@@ -551,12 +551,23 @@ export function getFirestoreDb() {
           experimentalForceLongPolling: true,
           ignoreUndefinedProperties: true
         };
-        dbInstance = (dbId && dbId !== 'default' && dbId !== '(default)')
-          ? initializeFirestore(app, { ...configOptions, databaseId: dbId })
-          : initializeFirestore(app, configOptions);
-        console.log('[BETEPRO] Firebase initialized successfully with database:', firebaseConfig.firestoreDatabaseId || '(default)');
+        try {
+          dbInstance = (dbId && dbId !== 'default' && dbId !== '(default)')
+            ? initializeFirestore(app, { ...configOptions, databaseId: dbId })
+            : initializeFirestore(app, configOptions);
+          console.log('[BETEPRO] Firebase initialized successfully with database:', firebaseConfig.firestoreDatabaseId || '(default)');
+        } catch (err: any) {
+          if (err.message && (err.message.includes('already been initialized') || err.message.includes('initializeFirestore() once'))) {
+            console.log('[BETEPRO] Firestore already initialized, retrieving existing instance...');
+            dbInstance = (dbId && dbId !== 'default' && dbId !== '(default)')
+              ? getFirestore(app, dbId)
+              : getFirestore(app);
+          } else {
+            console.error('Error initializing Firebase in server/db:', err);
+          }
+        }
       } catch (err) {
-        console.error('Error initializing Firebase in server/db:', err);
+        console.error('Error initializing Firebase App in server/db:', err);
       }
     } else {
       console.error('[BETEPRO] firebase-applet-config.json not found on disk, and no Firebase environment variables are configured.');
@@ -757,7 +768,9 @@ export async function ensureDbLoaded(reqPath?: string): Promise<DatabaseSchema> 
   
   if (reqPath) {
     const p = reqPath.toLowerCase();
-    if (p.includes('/api/auth') || p.includes('/api/games') || p.includes('/api/mines') || p.includes('/api/blackjack') || p.includes('/api/crash') || p.includes('/api/dice') || p.includes('/api/slots') || p.includes('/api/roulette') || p.includes('/api/wheel')) {
+    if (p.includes('/api/auth/register') || p.includes('/api/auth/sync')) {
+      keysToLoad = ['users', 'notifications', 'transactions'];
+    } else if (p.includes('/api/auth') || p.includes('/api/games') || p.includes('/api/mines') || p.includes('/api/blackjack') || p.includes('/api/crash') || p.includes('/api/dice') || p.includes('/api/slots') || p.includes('/api/roulette') || p.includes('/api/wheel')) {
       keysToLoad = ['users'];
     } else if (p.includes('/api/matches')) {
       keysToLoad = ['matches', 'predictions'];
