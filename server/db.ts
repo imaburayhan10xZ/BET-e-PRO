@@ -755,6 +755,29 @@ export const loadedFromFirestore: Record<string, boolean> = {};
 let isSettingsLoaded = false;
 
 export async function ensureDbLoaded(reqPath?: string): Promise<DatabaseSchema> {
+  // If cachedDb is not initialized, load it from local JSON first
+  if (!cachedDb) {
+    cachedDb = readLocalDb();
+  }
+
+  const firestore = getFirestoreDb();
+  if (!firestore) {
+    console.warn('Firestore is not configured. Falling back to local DB.');
+    isLoaded = true;
+    return cachedDb;
+  }
+
+  // If there is already a load in progress, await that same loadPromise to deduplicate concurrent requests
+  if (loadPromise) {
+    try {
+      console.log('[BETEPRO] Concurrent request detected. Reusing existing database load promise...');
+      await loadPromise;
+    } catch (err) {
+      console.error('[BETEPRO] Awaited loadPromise failed:', err);
+    }
+    return cachedDb;
+  }
+
   // Determine which collections we want to ensure are loaded from Firestore
   let keysToLoad: (keyof DatabaseSchema)[] = [
     'users', 'matches', 'predictions', 'transactions', 'promotions', 
@@ -797,43 +820,6 @@ export async function ensureDbLoaded(reqPath?: string): Promise<DatabaseSchema> 
     keysToLoad = ['users'];
   }
 
-  // If cachedDb is not initialized, load it from local JSON first
-  if (!cachedDb) {
-    cachedDb = readLocalDb();
-  }
-
-  const firestore = getFirestoreDb();
-  if (!firestore) {
-    console.warn('Firestore is not configured. Falling back to local DB.');
-    isLoaded = true;
-    return cachedDb;
-  }
-
-  // Load settings once
-  if (!isSettingsLoaded) {
-    try {
-      const systemDoc = await withTimeout(
-        getDoc(doc(firestore, 'settings', 'system')),
-        15000,
-        'Firestore settings fetch timed out'
-      );
-      if (systemDoc.exists()) {
-        cachedDb.settings = systemDoc.data() as SystemSettings;
-      } else {
-        console.log('[BETEPRO] Settings document not found in system. Seeding default...');
-        await withTimeout(
-          setDoc(doc(firestore, 'settings', 'system'), DEFAULT_SETTINGS),
-          15000,
-          'Firestore settings seed timed out'
-        );
-        cachedDb.settings = DEFAULT_SETTINGS;
-      }
-      isSettingsLoaded = true;
-    } catch (err) {
-      console.error('[BETEPRO] Failed to fetch settings from Firestore:', err);
-    }
-  }
-
   // Filter out keys that are already loaded
   const unloadedKeys = keysToLoad.filter(k => !loadedFromFirestore[k]);
 
@@ -842,62 +828,99 @@ export async function ensureDbLoaded(reqPath?: string): Promise<DatabaseSchema> 
     return cachedDb;
   }
 
-  console.log(`[BETEPRO] Lazily fetching ${unloadedKeys.join(', ')} from Firestore...`);
-  
-  const listCollections: { key: keyof DatabaseSchema; idKey: string }[] = [
-    { key: 'users', idKey: 'id' },
-    { key: 'matches', idKey: 'id' },
-    { key: 'predictions', idKey: 'id' },
-    { key: 'transactions', idKey: 'id' },
-    { key: 'promotions', idKey: 'id' },
-    { key: 'notifications', idKey: 'id' },
-    { key: 'leaderboard', idKey: 'username' },
-    { key: 'supportTickets', idKey: 'id' },
-    { key: 'news', idKey: 'id' },
-    { key: 'supportChannels', idKey: 'id' },
-    { key: 'banners', idKey: 'id' }
-  ];
+  // Create the shared loading promise to handle concurrency
+  loadPromise = (async () => {
+    // 1. Load settings once
+    if (!isSettingsLoaded) {
+      try {
+        const systemDoc = await withTimeout(
+          getDoc(doc(firestore, 'settings', 'system')),
+          4000,
+          'Firestore settings fetch timed out'
+        );
+        if (systemDoc.exists()) {
+          cachedDb!.settings = systemDoc.data() as SystemSettings;
+        } else {
+          console.log('[BETEPRO] Settings document not found in system. Seeding default...');
+          await withTimeout(
+            setDoc(doc(firestore, 'settings', 'system'), DEFAULT_SETTINGS),
+            4000,
+            'Firestore settings seed timed out'
+          );
+          cachedDb!.settings = DEFAULT_SETTINGS;
+        }
+        isSettingsLoaded = true;
+      } catch (err) {
+        console.error('[BETEPRO] Failed to fetch settings from Firestore:', err);
+      }
+    }
+
+    console.log(`[BETEPRO] Lazily fetching ${unloadedKeys.join(', ')} from Firestore...`);
+    
+    const listCollections: { key: keyof DatabaseSchema; idKey: string }[] = [
+      { key: 'users', idKey: 'id' },
+      { key: 'matches', idKey: 'id' },
+      { key: 'predictions', idKey: 'id' },
+      { key: 'transactions', idKey: 'id' },
+      { key: 'promotions', idKey: 'id' },
+      { key: 'notifications', idKey: 'id' },
+      { key: 'leaderboard', idKey: 'username' },
+      { key: 'supportTickets', idKey: 'id' },
+      { key: 'news', idKey: 'id' },
+      { key: 'supportChannels', idKey: 'id' },
+      { key: 'banners', idKey: 'id' }
+    ];
+
+    try {
+      await withTimeout(
+        Promise.all(
+          unloadedKeys.map(async (key) => {
+            const colConfig = listCollections.find(c => c.key === key);
+            if (!colConfig) return;
+
+            try {
+              const querySnapshot = await getDocs(collection(firestore, key));
+              const items: any[] = [];
+              querySnapshot.forEach((docSnap) => {
+                items.push({ [colConfig.idKey]: docSnap.id, ...docSnap.data() });
+              });
+
+              if (key === 'users') {
+                items.forEach(u => {
+                  const emailLower = u.email?.toLowerCase();
+                  if (u.username === 'admin' || emailLower === 'admin@betepro.com' || emailLower === 'aburayhan10x@gmail.com') {
+                    u.role = 'primary_admin';
+                  }
+                });
+              }
+
+              cachedDb![key] = items as any;
+              loadedFromFirestore[key] = true;
+            } catch (err) {
+              console.error(`[BETEPRO] Failed to fetch collection ${key} from Firestore:`, err);
+            }
+          })
+        ),
+        5000,
+        'Firestore parallel lazy load timed out'
+      );
+    } catch (err) {
+      console.error('[BETEPRO] Error during parallel lazy load:', err);
+    }
+
+    writeLocalDb(cachedDb!);
+    isLoaded = true;
+    lastLoadTime = Date.now();
+    return cachedDb!;
+  })();
 
   try {
-    await withTimeout(
-      Promise.all(
-        unloadedKeys.map(async (key) => {
-          const colConfig = listCollections.find(c => c.key === key);
-          if (!colConfig) return;
-
-          try {
-            const querySnapshot = await getDocs(collection(firestore, key));
-            const items: any[] = [];
-            querySnapshot.forEach((docSnap) => {
-              items.push({ [colConfig.idKey]: docSnap.id, ...docSnap.data() });
-            });
-
-            if (key === 'users') {
-              items.forEach(u => {
-                const emailLower = u.email?.toLowerCase();
-                if (u.username === 'admin' || emailLower === 'admin@betepro.com' || emailLower === 'aburayhan10x@gmail.com') {
-                  u.role = 'primary_admin';
-                }
-              });
-            }
-
-            cachedDb![key] = items as any;
-            loadedFromFirestore[key] = true;
-          } catch (err) {
-            console.error(`[BETEPRO] Failed to fetch collection ${key} from Firestore:`, err);
-          }
-        })
-      ),
-      25000,
-      'Firestore parallel lazy load timed out'
-    );
-  } catch (err) {
-    console.error('[BETEPRO] Error during parallel lazy load:', err);
+    await loadPromise;
+  } finally {
+    // Reset loadPromise so future requests can query newly required keys if needed
+    loadPromise = null;
   }
 
-  writeLocalDb(cachedDb!);
-  isLoaded = true;
-  lastLoadTime = Date.now();
   return cachedDb;
 }
 
