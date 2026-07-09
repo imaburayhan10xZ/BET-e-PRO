@@ -18,7 +18,8 @@ import {
   sendPasswordResetEmail, 
   signOut,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
+  onAuthStateChanged
 } from 'firebase/auth';
 
 // Subcomponents
@@ -128,9 +129,9 @@ export default function App() {
 
   // Fetch Auth details on mount
   const fetchUserProfile = async () => {
+    // Legacy support: fetch if token exists on demand
     const token = localStorage.getItem('token');
     if (!token) return;
-
     try {
       const res = await fetch('/api/auth/profile', {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -139,9 +140,6 @@ export default function App() {
         const data = await res.json();
         setUser(data.user);
         setNotifications(data.notifications || []);
-      } else {
-        localStorage.removeItem('token');
-        setUser(null);
       }
     } catch (e) {
       console.error(e);
@@ -173,12 +171,42 @@ export default function App() {
     window.addEventListener('popstate', handleLocationChange);
     handleLocationChange(); // run immediately on load
 
-    fetchUserProfile();
+    // Synchronize client state with native Firebase Auth SDK
+    const unsubscribe = onAuthStateChanged(firebaseAuth, async (fbUser) => {
+      if (fbUser) {
+        try {
+          const token = await fbUser.getIdToken(true);
+          localStorage.setItem('token', token);
+          
+          const res = await fetch('/api/auth/profile', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setUser(data.user);
+            setNotifications(data.notifications || []);
+          } else {
+            console.warn('[AUTH] Client profile load failed or blocked.');
+            localStorage.removeItem('token');
+            setUser(null);
+          }
+        } catch (e) {
+          console.error('[AUTH] Sync error:', e);
+          localStorage.removeItem('token');
+          setUser(null);
+        }
+      } else {
+        localStorage.removeItem('token');
+        setUser(null);
+      }
+    });
+
     fetchPromotions();
     fetchSettingsAndBanners();
 
     return () => {
       window.removeEventListener('popstate', handleLocationChange);
+      unsubscribe();
     };
   }, []);
 
@@ -210,11 +238,33 @@ export default function App() {
     setIsAuthLoading(true);
 
     try {
-      // Direct reliable server API call to /api/auth/login
+      if (!usernameOrPhone || !password) {
+        throw new Error('Please fill in all fields.');
+      }
+
+      // 1. Resolve Username or Phone Number to Firebase Email on the server
+      const resolveRes = await fetch('/api/auth/resolve-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ usernameOrPhone })
+      });
+
+      if (!resolveRes.ok) {
+        const resolveError = await resolveRes.json();
+        throw new Error(resolveError.error || 'Failed to find account with that username/phone.');
+      }
+
+      const { email } = await resolveRes.json();
+
+      // 2. Sign in natively via Google Firebase Client SDK
+      const userCredential = await signInWithEmailAndPassword(firebaseAuth, email, password);
+      const idToken = await userCredential.user.getIdToken(true);
+
+      // 3. Log in on our backend with verified Firebase token
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usernameOrPhone, password })
+        body: JSON.stringify({ idToken })
       });
 
       let data: any = {};
@@ -222,14 +272,11 @@ export default function App() {
       if (contentType && contentType.includes('application/json')) {
         data = await res.json();
       } else {
-        const textResponse = await res.text();
-        console.error('[AUTH] Received non-JSON response during login:', textResponse);
-        let errorSnippet = textResponse.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 150);
-        throw new Error(`Server connection issue (Status ${res.status}): ${errorSnippet}`);
+        throw new Error('Non-JSON response from server.');
       }
 
       if (res.ok) {
-        localStorage.setItem('token', data.token);
+        localStorage.setItem('token', idToken);
         setUser(data.user);
         setNotifications(data.notifications || []);
         setAuthMode(null);
@@ -237,11 +284,19 @@ export default function App() {
         setPassword('');
         alert(`Welcome back, ${data.user.username}!`);
       } else {
-        setAuthError(data.error || 'Invalid credentials or access denied.');
+        // If profile creation/block checks failed, sign out immediately
+        await signOut(firebaseAuth);
+        throw new Error(data.error || 'Login verification failed.');
       }
     } catch (err: any) {
-      console.error(err);
-      setAuthError(err.message || 'Authentication failed.');
+      console.error('[AUTH] Login Error:', err);
+      let errorMsg = err.message || 'Authentication failed.';
+      if (err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
+        errorMsg = 'Invalid username/phone number or password.';
+      } else if (err.code === 'auth/invalid-credential') {
+        errorMsg = 'Invalid credentials. Please verify your password.';
+      }
+      setAuthError(errorMsg);
     } finally {
       setIsAuthLoading(false);
     }
@@ -253,16 +308,30 @@ export default function App() {
     setAuthSuccess('');
     setIsAuthLoading(true);
 
+    let createdFbUser: any = null;
+
     try {
-      // Direct reliable server API call to /api/auth/register
+      if (!fullName || !username || !phone || !password) {
+        throw new Error('Please fill in all required fields.');
+      }
+
+      const cleanUsername = username.trim().toLowerCase();
+      const email = `${cleanUsername}@betepro.com`;
+
+      // 1. Create Native Auth Account via Client SDK
+      const userCredential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
+      createdFbUser = userCredential.user;
+      const idToken = await createdFbUser.getIdToken(true);
+
+      // 2. Send token to backend to write local profile
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          idToken,
           fullName,
-          username,
+          username: cleanUsername,
           phone,
-          password,
           referralCode
         })
       });
@@ -272,16 +341,13 @@ export default function App() {
       if (contentType && contentType.includes('application/json')) {
         data = await res.json();
       } else {
-        const textResponse = await res.text();
-        console.error('[AUTH] Received non-JSON response during registration:', textResponse);
-        let errorSnippet = textResponse.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 150);
-        throw new Error(`Server connection issue (Status ${res.status}): ${errorSnippet}`);
+        throw new Error('Non-JSON response from registration backend.');
       }
 
       if (res.ok) {
-        localStorage.setItem('token', data.token);
+        localStorage.setItem('token', idToken);
         setUser(data.user);
-        setNotifications(data.notifications || []);
+        setNotifications([]);
         setAuthSuccess('Registration completed and logged in!');
         setAuthMode(null);
         setFullName('');
@@ -290,11 +356,18 @@ export default function App() {
         setPassword('');
         setReferralCode('');
       } else {
-        setAuthError(data.error || 'Failed to register account.');
+        // Registration failed on backend (e.g. username taken, phone registered)
+        // Rollback Firebase Auth account creation to avoid orphaned Auth records!
+        await createdFbUser.delete();
+        throw new Error(data.error || 'Failed to complete profile registration.');
       }
     } catch (err: any) {
-      console.error(err);
-      setAuthError(err.message || 'Failed to register account.');
+      console.error('[AUTH] Registration Error:', err);
+      let errorMsg = err.message || 'Failed to register account.';
+      if (err.code === 'auth/email-already-in-use') {
+        errorMsg = 'An account is already registered with this email/username.';
+      }
+      setAuthError(errorMsg);
     } finally {
       setIsAuthLoading(false);
     }
@@ -325,13 +398,13 @@ export default function App() {
       const provider = new GoogleAuthProvider();
       const userCredential = await signInWithPopup(firebaseAuth, provider);
       const fbUser = userCredential.user;
+      const idToken = await fbUser.getIdToken(true);
 
       const res = await fetch('/api/auth/firebase-sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: fbUser.email,
-          uid: fbUser.uid,
+          idToken,
           username: fbUser.displayName || undefined
         })
       });
@@ -351,7 +424,7 @@ export default function App() {
       }
 
       if (res.ok) {
-        localStorage.setItem('token', data.token);
+        localStorage.setItem('token', idToken);
         setUser(data.user);
         setNotifications(data.notifications || []);
         setAuthMode(null);
