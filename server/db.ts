@@ -479,7 +479,17 @@ let dbInstance: any = null;
 
 export function getFirestoreDb() {
   if (!dbInstance) {
-    let firebaseConfig: any = null;
+    // Default to the correct configuration directly to ensure Vercel does not fail on file reads
+    let firebaseConfig: any = {
+      projectId: "beteproodb",
+      appId: "1:115750551989:web:b06054d72482fcafda59fc",
+      apiKey: "AIzaSyAz7gdV4Vr1rSVpr125PQTWNirQK8MnM4c",
+      authDomain: "beteproodb.firebaseapp.com",
+      firestoreDatabaseId: "default",
+      storageBucket: "beteproodb.firebasestorage.app",
+      messagingSenderId: "115750551989",
+      measurementId: ""
+    };
 
     // 1. Try to load from env variable FIREBASE_CONFIG (JSON string)
     if (process.env.FIREBASE_CONFIG) {
@@ -492,55 +502,40 @@ export function getFirestoreDb() {
     }
 
     // 2. Try to load from individual env variables
-    if (!firebaseConfig && process.env.FIREBASE_PROJECT_ID) {
+    if (process.env.FIREBASE_PROJECT_ID) {
       console.log('[BETEPRO] Found individual Firebase environment variables. Constructing config...');
       firebaseConfig = {
         projectId: process.env.FIREBASE_PROJECT_ID,
-        appId: process.env.FIREBASE_APP_ID,
-        apiKey: process.env.FIREBASE_API_KEY,
-        authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-        firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID,
-        storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-        messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+        appId: process.env.FIREBASE_APP_ID || firebaseConfig.appId,
+        apiKey: process.env.FIREBASE_API_KEY || firebaseConfig.apiKey,
+        authDomain: process.env.FIREBASE_AUTH_DOMAIN || firebaseConfig.authDomain,
+        firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || firebaseConfig.firestoreDatabaseId,
+        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || firebaseConfig.storageBucket,
+        messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || firebaseConfig.messagingSenderId,
       };
     }
 
     // 3. Try to load from firebase-applet-config.json (multiple paths)
-    if (!firebaseConfig) {
-      const pathsToTry = [
-        path.join(process.cwd(), 'firebase-applet-config.json'),
-        '/var/task/firebase-applet-config.json',
-        'firebase-applet-config.json'
-      ];
+    const pathsToTry = [
+      path.join(process.cwd(), 'firebase-applet-config.json'),
+      '/var/task/firebase-applet-config.json',
+      'firebase-applet-config.json'
+    ];
 
-      for (const p of pathsToTry) {
-        if (fs.existsSync(p)) {
-          try {
-            console.log('[BETEPRO] Loading Firebase config from file path:', p);
-            const configRaw = fs.readFileSync(p, 'utf-8');
-            firebaseConfig = JSON.parse(configRaw);
+    for (const p of pathsToTry) {
+      if (fs.existsSync(p)) {
+        try {
+          console.log('[BETEPRO] Loading Firebase config from file path:', p);
+          const configRaw = fs.readFileSync(p, 'utf-8');
+          const parsed = JSON.parse(configRaw);
+          if (parsed && parsed.projectId) {
+            firebaseConfig = parsed;
             break;
-          } catch (err) {
-            console.error(`Error reading config from path ${p}:`, err);
           }
+        } catch (err) {
+          console.error(`Error reading config from path ${p}:`, err);
         }
       }
-    }
-
-    // 4. Solid hardcoded fallback for Vercel environment where JSON may not be copied
-    if (!firebaseConfig) {
-      console.log('[BETEPRO] Using hardcoded fallback Firebase config for production routing...');
-      firebaseConfig = {
-        apiKey: "AIzaSyAz7gdV4Vr1rSVpr125PQTWNirQK8MnM4c",
-        authDomain: "beteproodb.firebaseapp.com",
-        databaseURL: "https://beteproodb-default-rtdb.asia-southeast1.firebasedatabase.app",
-        projectId: "beteproodb",
-        storageBucket: "beteproodb.firebasestorage.app",
-        messagingSenderId: "115750551989",
-        appId: "1:115750551989:web:b1a88d15c412524ada59fc",
-        measurementId: "G-MJ9HMS5THX",
-        firestoreDatabaseId: "(default)"
-      };
     }
 
     if (firebaseConfig) {
@@ -939,15 +934,11 @@ export async function writeDb(data: DatabaseSchema): Promise<void> {
     ];
 
     collectionsToSync.forEach(({ key, idKey }) => {
-      if (loadedFromFirestore[key]) {
-        promises.push(syncCollectionToFirestore(key, data[key] as any[], oldDb[key] as any[], idKey));
-      }
+      promises.push(syncCollectionToFirestore(key, data[key] as any[], oldDb[key] as any[], idKey));
     });
 
-    if (loadedFromFirestore['settings'] || isSettingsLoaded) {
-      if (JSON.stringify(data.settings) !== JSON.stringify(oldDb.settings)) {
-        promises.push(setDoc(doc(firestore, 'settings', 'system'), JSON.parse(JSON.stringify(data.settings))));
-      }
+    if (JSON.stringify(data.settings) !== JSON.stringify(oldDb.settings)) {
+      promises.push(setDoc(doc(firestore, 'settings', 'system'), JSON.parse(JSON.stringify(data.settings))));
     }
 
     if (promises.length > 0) {
