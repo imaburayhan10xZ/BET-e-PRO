@@ -7,50 +7,13 @@ import { getFirebaseConfig } from './firebase';
 const router = Router();
 
 /**
- * Endpoint to resolve Username or Phone Number to their registered email address.
- * Used during client-side Firebase login.
- */
-router.post('/resolve-login', async (req, res) => {
-  try {
-    const { usernameOrPhone } = req.body;
-    if (!usernameOrPhone) {
-      return res.status(400).json({ error: 'Username or phone number is required.' });
-    }
-
-    const db = await ensureDbLoaded('/api/auth/resolve-login');
-    const inputClean = usernameOrPhone.trim().toLowerCase();
-
-    // Search by username or phone
-    const user = db.users.find(u => 
-      u.username.toLowerCase() === inputClean || 
-      u.phone === usernameOrPhone
-    );
-
-    if (user) {
-      return res.json({ email: user.email });
-    }
-
-    // If not found in our database, check if it's already an email format
-    if (usernameOrPhone.includes('@')) {
-      return res.json({ email: usernameOrPhone });
-    }
-
-    // Default auto-generated fallback format for usernames
-    return res.json({ email: `${inputClean}@betepro.com` });
-  } catch (err: any) {
-    console.error('[AUTH-ROUTES] Error in resolve-login:', err);
-    return res.status(500).json({ error: 'Failed to resolve identifier.' });
-  }
-});
-
-/**
  * User Registration - Verifies Firebase ID Token and initializes user profile in Firestore.
  */
 router.post('/register', async (req, res) => {
   try {
-    const { idToken, fullName, username, phone, referralCode } = req.body;
+    const { idToken, fullName, username, referralCode } = req.body;
 
-    if (!idToken || !fullName || !username || !phone) {
+    if (!idToken || !fullName || !username) {
       return res.status(400).json({ error: 'Please enter all required fields.' });
     }
 
@@ -71,11 +34,6 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Username is already taken. Please choose another.' });
     }
 
-    const existingPhone = db.users.find(u => u.phone === phone);
-    if (existingPhone) {
-      return res.status(400).json({ error: 'Phone number is already registered.' });
-    }
-
     // 3. Set up Referral
     let referredBy: string | undefined = undefined;
     if (referralCode) {
@@ -93,7 +51,7 @@ router.post('/register', async (req, res) => {
       id: uid, // Bind directly to Firebase Auth UID
       username,
       email,
-      phone,
+      phone: '',
       role: 'user' as const,
       balance: startBalance,
       referralCode: userReferral,

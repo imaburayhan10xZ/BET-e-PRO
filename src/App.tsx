@@ -238,29 +238,15 @@ export default function App() {
     setIsAuthLoading(true);
 
     try {
-      if (!usernameOrPhone || !password) {
+      if (!email || !password) {
         throw new Error('Please fill in all fields.');
       }
 
-      // 1. Resolve Username or Phone Number to Firebase Email on the server
-      const resolveRes = await fetch('/api/auth/resolve-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usernameOrPhone })
-      });
-
-      if (!resolveRes.ok) {
-        const resolveError = await resolveRes.json();
-        throw new Error(resolveError.error || 'Failed to find account with that username/phone.');
-      }
-
-      const { email } = await resolveRes.json();
-
-      // 2. Sign in natively via Google Firebase Client SDK
+      // 1. Sign in natively via Google Firebase Client SDK
       const userCredential = await signInWithEmailAndPassword(firebaseAuth, email, password);
       const idToken = await userCredential.user.getIdToken(true);
 
-      // 3. Log in on our backend with verified Firebase token
+      // 2. Log in on our backend with verified Firebase token
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -280,9 +266,9 @@ export default function App() {
         setUser(data.user);
         setNotifications(data.notifications || []);
         setAuthMode(null);
-        setUsernameOrPhone('');
+        setEmail('');
         setPassword('');
-        alert(`Welcome back, ${data.user.username}!`);
+        alert(`Welcome back, ${data.user.username || data.user.email}!`);
       } else {
         // If profile creation/block checks failed, sign out immediately
         await signOut(firebaseAuth);
@@ -292,7 +278,7 @@ export default function App() {
       console.error('[AUTH] Login Error:', err);
       let errorMsg = err.message || 'Authentication failed.';
       if (err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
-        errorMsg = 'Invalid username/phone number or password.';
+        errorMsg = 'Invalid email or password.';
       } else if (err.code === 'auth/invalid-credential') {
         errorMsg = 'Invalid credentials. Please verify your password.';
       }
@@ -311,15 +297,15 @@ export default function App() {
     let createdFbUser: any = null;
 
     try {
-      if (!fullName || !username || !phone || !password) {
+      if (!fullName || !email || !password) {
         throw new Error('Please fill in all required fields.');
       }
 
-      const cleanUsername = username.trim().toLowerCase();
-      const email = `${cleanUsername}@betepro.com`;
+      const cleanEmail = email.trim().toLowerCase();
+      const derivedUsername = cleanEmail.split('@')[0];
 
       // 1. Create Native Auth Account via Client SDK
-      const userCredential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(firebaseAuth, cleanEmail, password);
       createdFbUser = userCredential.user;
       const idToken = await createdFbUser.getIdToken(true);
 
@@ -330,8 +316,7 @@ export default function App() {
         body: JSON.stringify({
           idToken,
           fullName,
-          username: cleanUsername,
-          phone,
+          username: derivedUsername,
           referralCode
         })
       });
@@ -351,12 +336,11 @@ export default function App() {
         setAuthSuccess('Registration completed and logged in!');
         setAuthMode(null);
         setFullName('');
-        setUsername('');
-        setPhone('');
+        setEmail('');
         setPassword('');
         setReferralCode('');
       } else {
-        // Registration failed on backend (e.g. username taken, phone registered)
+        // Registration failed on backend (e.g. username taken)
         // Rollback Firebase Auth account creation to avoid orphaned Auth records!
         await createdFbUser.delete();
         throw new Error(data.error || 'Failed to complete profile registration.');
@@ -365,7 +349,7 @@ export default function App() {
       console.error('[AUTH] Registration Error:', err);
       let errorMsg = err.message || 'Failed to register account.';
       if (err.code === 'auth/email-already-in-use') {
-        errorMsg = 'An account is already registered with this email/username.';
+        errorMsg = 'An account is already registered with this email.';
       }
       setAuthError(errorMsg);
     } finally {
@@ -1257,17 +1241,17 @@ export default function App() {
                 <form onSubmit={handleLoginSubmit} className="space-y-4 text-xs text-slate-200">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-extrabold text-[#8daaa3] uppercase tracking-wider">
-                      Username or Mobile Number
+                      Email Address
                     </label>
                     <div className="relative rounded-2xl bg-[#0a382e] border border-[#166453] focus-within:border-yellow-400 focus-within:bg-[#0e4c3f] transition-all duration-350 p-3 flex items-center gap-3 shadow-inner">
-                      <Users className="h-4.5 w-4.5 text-yellow-400 shrink-0" />
+                      <Mail className="h-4.5 w-4.5 text-yellow-400 shrink-0" />
                       <input
-                        type="text"
+                        type="email"
                         required
                         disabled={isAuthLoading}
-                        value={usernameOrPhone}
-                        onChange={(e) => setUsernameOrPhone(e.target.value)}
-                        placeholder="Enter username or mobile number"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="Enter email address"
                         className="w-full bg-transparent text-sm text-white font-bold placeholder-slate-400/60 focus:outline-none disabled:opacity-50"
                       />
                     </div>
@@ -1341,35 +1325,17 @@ export default function App() {
 
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-extrabold text-[#8daaa3] uppercase tracking-wider">
-                      Username Handle
+                      Email Address
                     </label>
                     <div className="relative rounded-2xl bg-[#0a382e] border border-[#166453] focus-within:border-yellow-400 focus-within:bg-[#0e4c3f] transition-all duration-350 p-3 flex items-center gap-3 shadow-inner">
-                      <Users className="h-4.5 w-4.5 text-yellow-400 shrink-0" />
+                      <Mail className="h-4.5 w-4.5 text-yellow-400 shrink-0" />
                       <input
-                        type="text"
+                        type="email"
                         required
                         disabled={isAuthLoading}
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
-                        placeholder="e.g. sakib_boss"
-                        className="w-full bg-transparent text-sm text-white font-bold placeholder-slate-400/60 focus:outline-none disabled:opacity-50"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-extrabold text-[#8daaa3] uppercase tracking-wider">
-                      Mobile Number
-                    </label>
-                    <div className="relative rounded-2xl bg-[#0a382e] border border-[#166453] focus-within:border-yellow-400 focus-within:bg-[#0e4c3f] transition-all duration-350 p-3 flex items-center gap-3 shadow-inner">
-                      <Phone className="h-4.5 w-4.5 text-yellow-400 shrink-0" />
-                      <input
-                        type="text"
-                        required
-                        disabled={isAuthLoading}
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                        placeholder="e.g. 01700000000"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="e.g. sakib@gmail.com"
                         className="w-full bg-transparent text-sm text-white font-bold placeholder-slate-400/60 focus:outline-none disabled:opacity-50"
                       />
                     </div>

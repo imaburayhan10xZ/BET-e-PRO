@@ -1,7 +1,7 @@
 // Diagnostic wrapper for Vercel Serverless Function to catch and display exact runtime errors
 export default async function handler(req: any, res: any) {
   try {
-    const { app } = await import('../server');
+    const { app } = await import('../server.js');
     return app(req, res);
   } catch (err: any) {
     console.error('[VERCEL-CRASH] Serverless Function crashed:', err);
