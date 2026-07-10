@@ -4,8 +4,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
-import { Settings, Check, RefreshCw, ShieldAlert } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Settings, Check, RefreshCw, ShieldAlert, Image, X, Upload, Trash2, Globe } from 'lucide-react';
 import { SystemSettings } from '../../types';
 
 interface SettingsPanelProps {
@@ -18,6 +18,7 @@ export default function SettingsPanel({ settings, loading, onRefresh }: Settings
   const [siteName, setSiteName] = useState('BetePro BDT');
   const [siteLogo, setSiteLogo] = useState('');
   const [siteFavicon, setSiteFavicon] = useState('');
+  const [isBrandingOpen, setIsBrandingOpen] = useState(false);
   const [minDeposit, setMinDeposit] = useState('200');
   const [minWithdraw, setMinWithdraw] = useState('500');
   const [bKashNumber, setBKashNumber] = useState('');
@@ -196,122 +197,233 @@ export default function SettingsPanel({ settings, loading, onRefresh }: Settings
             />
           </div>
 
-          {/* Site Logo */}
-          <div className="space-y-1.5 pt-2.5 border-t border-slate-200/60">
-            <div className="flex justify-between items-center">
-              <label className="text-[10px] font-bold text-slate-500 uppercase">Site Logo (সাইট লোগো)</label>
-              {siteLogo && (
-                <button 
-                  type="button" 
-                  onClick={() => setSiteLogo('')} 
-                  className="text-[9px] font-bold text-rose-500 hover:underline cursor-pointer"
-                >
-                  Clear Logo
-                </button>
-              )}
-            </div>
-            
-            <div className="flex items-center space-x-3">
-              {siteLogo ? (
-                <div className="h-11 w-11 bg-slate-900 rounded-xl p-1 border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden">
-                  <img src={siteLogo} alt="Logo preview" className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" />
+          {/* Trigger button for the branding assets modal */}
+          <div className="pt-2 border-t border-slate-200/60">
+            <button
+              type="button"
+              onClick={() => setIsBrandingOpen(true)}
+              className="w-full flex items-center justify-between p-3 bg-white hover:bg-slate-50 border border-slate-200/70 rounded-xl transition cursor-pointer active:scale-[0.98] group"
+            >
+              <div className="flex items-center space-x-3 text-left">
+                <div className="flex -space-x-1.5 shrink-0">
+                  {siteLogo ? (
+                    <div className="h-8 w-8 bg-slate-950 rounded-lg p-0.5 border border-slate-200 flex items-center justify-center overflow-hidden">
+                      <img src={siteLogo} alt="Logo" className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" />
+                    </div>
+                  ) : (
+                    <div className="h-8 w-8 bg-slate-100 rounded-lg border border-slate-200 flex items-center justify-center text-[8px] text-slate-400 font-bold font-mono">
+                      LG
+                    </div>
+                  )}
+                  {siteFavicon ? (
+                    <div className="h-8 w-8 bg-white rounded-lg p-1 border border-slate-200 flex items-center justify-center overflow-hidden shadow-sm">
+                      <img src={siteFavicon} alt="Favicon" className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" />
+                    </div>
+                  ) : (
+                    <div className="h-8 w-8 bg-slate-100 rounded-lg border border-slate-200 flex items-center justify-center text-[8px] text-slate-400 font-bold font-mono">
+                      FAV
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="h-11 w-11 bg-slate-100 rounded-xl border border-slate-200 flex items-center justify-center text-[9px] text-slate-400 font-bold font-mono shrink-0 select-none">
-                  NO LOGO
-                </div>
-              )}
-              
-              <div className="flex-1 space-y-1">
-                <input
-                  type="text"
-                  value={siteLogo}
-                  onChange={(e) => setSiteLogo(e.target.value)}
-                  placeholder="Paste image link/URL"
-                  className="w-full rounded-lg bg-white border border-slate-200 px-2.5 py-1.5 text-[11px] text-slate-800 focus:outline-none font-mono"
-                />
-                
-                <div className="flex items-center space-x-2">
-                  <span className="text-[9px] text-slate-400">or</span>
-                  <label className="cursor-pointer text-[9px] font-black text-indigo-600 hover:text-indigo-800 transition">
-                    {uploadingLogo ? 'Uploading...' : '📁 Upload Logo File'}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleImageUpload(file, 'logo');
-                      }}
-                      disabled={uploadingLogo}
-                    />
-                  </label>
+                <div>
+                  <span className="text-[11px] font-black text-slate-700 block">Manage Branding Logo & Favicon</span>
+                  <span className="text-[9px] text-slate-400 font-medium block">Click to upload or edit site logo & favicon</span>
                 </div>
               </div>
-            </div>
-            <p className="text-[9px] text-slate-400 font-medium leading-relaxed">
-              সরাসরি আপনার লোগো ফাইল আপলোড করতে পারেন অথবা যেকোনো ইমেজের লিংক বসিয়ে দিতে পারেন।
-            </p>
-          </div>
-
-          {/* Site Favicon */}
-          <div className="space-y-1.5 pt-2.5 border-t border-slate-200/60">
-            <div className="flex justify-between items-center">
-              <label className="text-[10px] font-bold text-slate-500 uppercase">Site Favicon (ট্যাব আইকন)</label>
-              {siteFavicon && (
-                <button 
-                  type="button" 
-                  onClick={() => setSiteFavicon('')} 
-                  className="text-[9px] font-bold text-rose-500 hover:underline cursor-pointer"
-                >
-                  Clear Favicon
-                </button>
-              )}
-            </div>
-            
-            <div className="flex items-center space-x-3">
-              {siteFavicon ? (
-                <div className="h-11 w-11 bg-white rounded-xl p-2 border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden">
-                  <img src={siteFavicon} alt="Favicon preview" className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" />
-                </div>
-              ) : (
-                <div className="h-11 w-11 bg-slate-100 rounded-xl border border-slate-200 flex items-center justify-center text-[9px] text-slate-400 font-bold font-mono shrink-0 select-none">
-                  FAVICON
-                </div>
-              )}
-              
-              <div className="flex-1 space-y-1">
-                <input
-                  type="text"
-                  value={siteFavicon}
-                  onChange={(e) => setSiteFavicon(e.target.value)}
-                  placeholder="Paste favicon image link/URL"
-                  className="w-full rounded-lg bg-white border border-slate-200 px-2.5 py-1.5 text-[11px] text-slate-800 focus:outline-none font-mono"
-                />
-                
-                <div className="flex items-center space-x-2">
-                  <span className="text-[9px] text-slate-400">or</span>
-                  <label className="cursor-pointer text-[9px] font-black text-indigo-600 hover:text-indigo-800 transition">
-                    {uploadingFavicon ? 'Uploading...' : '📁 Upload Favicon File'}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleImageUpload(file, 'favicon');
-                      }}
-                      disabled={uploadingFavicon}
-                    />
-                  </label>
-                </div>
-              </div>
-            </div>
-            <p className="text-[9px] text-slate-400 font-medium leading-relaxed">
-              Favicon হল ব্রাউজারের ট্যাবে প্রদর্শিত ছোট আইকন। এখানে যেকোনো স্কয়ার সাইজের ছবি আপলোড করুন।
-            </p>
+              <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 group-hover:bg-indigo-100 px-2 py-1 rounded-lg transition shrink-0">
+                Configure 📁
+              </span>
+            </button>
           </div>
         </div>
+
+        {/* Floating Modal for Logo and Favicon Management */}
+        <AnimatePresence>
+          {isBrandingOpen && (
+            <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+              {/* Backdrop */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsBrandingOpen(false)}
+                className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+              />
+
+              {/* Modal Container */}
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 15 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 15 }}
+                className="relative bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-100 overflow-hidden text-xs flex flex-col max-h-[90vh]"
+              >
+                {/* Header */}
+                <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Globe className="h-4 w-4 text-amber-400" />
+                    <div>
+                      <h4 className="text-[11px] font-black uppercase tracking-wider text-amber-300">Branding Assets Manager</h4>
+                      <p className="text-[9px] text-slate-300">লোগো এবং ব্রাউজার ট্যাব আইকন কনফিগারেশন</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsBrandingOpen(false)}
+                    className="p-1 rounded-full hover:bg-white/10 text-slate-300 hover:text-white transition cursor-pointer"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {/* Body scroll area */}
+                <div className="p-5 space-y-5 overflow-y-auto">
+                  
+                  {/* 1. SITE LOGO SECTION */}
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/60 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-1.5">
+                        <Image className="h-3.5 w-3.5 text-indigo-600" />
+                        <span className="font-bold text-slate-800 text-[11px] uppercase tracking-wide">Site Logo (সাইট লোগো)</span>
+                      </div>
+                      {siteLogo && (
+                        <button
+                          type="button"
+                          onClick={() => setSiteLogo('')}
+                          className="flex items-center space-x-0.5 text-[9px] font-bold text-rose-500 hover:underline cursor-pointer"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          <span>Clear Logo</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex items-start space-x-3">
+                      {siteLogo ? (
+                        <div className="h-12 w-12 bg-slate-900 rounded-xl p-1 border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden">
+                          <img src={siteLogo} alt="Logo" className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" />
+                        </div>
+                      ) : (
+                        <div className="h-12 w-12 bg-slate-100 rounded-xl border border-slate-200 flex items-center justify-center text-[8px] text-slate-400 font-bold font-mono shrink-0 select-none">
+                          NO LOGO
+                        </div>
+                      )}
+
+                      <div className="flex-1 space-y-1.5">
+                        <input
+                          type="text"
+                          value={siteLogo}
+                          onChange={(e) => setSiteLogo(e.target.value)}
+                          placeholder="Paste Logo URL (e.g., /logo.svg)"
+                          className="w-full rounded-lg bg-white border border-slate-200 px-2.5 py-1.5 text-[10px] text-slate-800 focus:outline-none font-mono"
+                        />
+                        
+                        <div className="flex items-center space-x-2">
+                          <span className="text-[9px] text-slate-400">or</span>
+                          <label className="cursor-pointer text-[9px] font-black text-indigo-600 hover:text-indigo-800 transition flex items-center space-x-1">
+                            <Upload className="h-3 w-3" />
+                            <span>{uploadingLogo ? 'Uploading Logo...' : '📁 Upload Logo File'}</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) handleImageUpload(file, 'logo');
+                              }}
+                              disabled={uploadingLogo}
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-[9px] text-slate-400 font-medium leading-relaxed">
+                      লোগো ইমেজ ফাইল সরাসরি আপলোড করতে পারেন অথবা যেকোনো ইমেজের লিংক বসিয়ে দিতে পারেন। 
+                    </p>
+                  </div>
+
+                  {/* 2. SITE FAVICON SECTION */}
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/60 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-1.5">
+                        <Globe className="h-3.5 w-3.5 text-indigo-600" />
+                        <span className="font-bold text-slate-800 text-[11px] uppercase tracking-wide">Site Favicon (ট্যাব আইকন)</span>
+                      </div>
+                      {siteFavicon && (
+                        <button
+                          type="button"
+                          onClick={() => setSiteFavicon('')}
+                          className="flex items-center space-x-0.5 text-[9px] font-bold text-rose-500 hover:underline cursor-pointer"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          <span>Clear Favicon</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex items-start space-x-3">
+                      {siteFavicon ? (
+                        <div className="h-12 w-12 bg-white rounded-xl p-1.5 border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden shadow-sm">
+                          <img src={siteFavicon} alt="Favicon" className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" />
+                        </div>
+                      ) : (
+                        <div className="h-12 w-12 bg-slate-100 rounded-xl border border-slate-200 flex items-center justify-center text-[8px] text-slate-400 font-bold font-mono shrink-0 select-none">
+                          FAVICON
+                        </div>
+                      )}
+
+                      <div className="flex-1 space-y-1.5">
+                        <input
+                          type="text"
+                          value={siteFavicon}
+                          onChange={(e) => setSiteFavicon(e.target.value)}
+                          placeholder="Paste Favicon URL (e.g., /favicon.svg)"
+                          className="w-full rounded-lg bg-white border border-slate-200 px-2.5 py-1.5 text-[10px] text-slate-800 focus:outline-none font-mono"
+                        />
+                        
+                        <div className="flex items-center space-x-2">
+                          <span className="text-[9px] text-slate-400">or</span>
+                          <label className="cursor-pointer text-[9px] font-black text-indigo-600 hover:text-indigo-800 transition flex items-center space-x-1">
+                            <Upload className="h-3 w-3" />
+                            <span>{uploadingFavicon ? 'Uploading Favicon...' : '📁 Upload Favicon File'}</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) handleImageUpload(file, 'favicon');
+                              }}
+                              disabled={uploadingFavicon}
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-[9px] text-slate-400 font-medium leading-relaxed">
+                      Favicon হল ব্রাউজারের ট্যাবে প্রদর্শিত ছোট আইকন। এখানে যেকোনো স্কয়ার আকারের ছবি আপলোড করুন।
+                    </p>
+                  </div>
+
+                </div>
+
+                {/* Footer action */}
+                <div className="bg-slate-50 border-t border-slate-100 p-4 flex items-center justify-between">
+                  <span className="text-[9.5px] font-semibold text-amber-600">
+                    * Parameters saved upon clicking Main Save below
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsBrandingOpen(false)}
+                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-black uppercase tracking-wider text-[9px] rounded-xl transition cursor-pointer"
+                  >
+                    Apply & Close (প্রয়োগ করুন)
+                  </button>
+                </div>
+
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
 
         {/* Maintenance Mode (Toggle switch!) */}
         <div className="flex items-center justify-between bg-red-50/50 border border-red-100 p-3 rounded-2xl">
