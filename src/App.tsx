@@ -1010,16 +1010,29 @@ export default function App() {
                         setAuthError('');
                         setAuthSuccess('');
                         try {
-                          // Direct reliable server API call to /api/auth/admin-login
+                          if (!email || !password) {
+                            throw new Error('Please fill in all fields.');
+                          }
+
+                          let loginEmail = email.trim();
+                          if (!loginEmail.includes('@')) {
+                            loginEmail = `${loginEmail.toLowerCase()}@betepro.com`;
+                          }
+
+                          // 1. Sign in natively via Google Firebase Client SDK
+                          const userCredential = await signInWithEmailAndPassword(firebaseAuth, loginEmail, password);
+                          const idToken = await userCredential.user.getIdToken(true);
+
+                          // 2. Direct reliable server API call to /api/auth/admin-login
                           const res = await fetch('/api/auth/admin-login', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ email, password })
+                            body: JSON.stringify({ idToken })
                           });
 
                           const data = await res.json();
                           if (res.ok) {
-                            localStorage.setItem('token', data.token);
+                            localStorage.setItem('token', idToken);
                             setUser(data.user);
                             setNotifications(data.notifications || []);
                             setAuthMode(null);
@@ -1027,23 +1040,28 @@ export default function App() {
                             setPassword('');
                             alert('Admin authorization successful! Welcome to the Cockpit.');
                           } else {
+                            await signOut(firebaseAuth);
                             setAuthError(data.error || 'Invalid admin credentials or access denied.');
                           }
                         } catch (err: any) {
                           console.error(err);
-                          setAuthError(err.message || 'Verification failed.');
+                          let errorMsg = err.message || 'Verification failed.';
+                          if (err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
+                            errorMsg = 'Invalid admin credentials.';
+                          }
+                          setAuthError(errorMsg);
                         }
                       }} 
                       className="space-y-4 text-xs"
                     >
                       <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Admin Username</label>
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Admin Email or Username</label>
                         <input
                           type="text"
                           required
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
-                          placeholder="e.g. admin"
+                          placeholder="e.g. admin or admin@betepro.com"
                           className="w-full rounded-xl bg-slate-50 border border-slate-200/80 p-3 text-slate-950 focus:border-[#1FA66A] focus:bg-white focus:outline-none"
                         />
                       </div>

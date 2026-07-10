@@ -140,16 +140,56 @@ router.post('/login', async (req, res) => {
     // 1. Verify the ID Token with Google
     const decoded = await verifyFirebaseIdToken(idToken);
     const uid = decoded.uid;
+    const email = decoded.email || '';
 
     const db = await ensureDbLoaded('/api/auth/login');
-    const user = db.users.find(u => u.id === uid);
+    let user = db.users.find(u => u.id === uid);
+
+    if (!user && email) {
+      // Check if there is a user with the same email but different ID (and update ID if so)
+      user = db.users.find(u => u.email.toLowerCase() === email.toLowerCase());
+      if (user) {
+        user.id = uid;
+        await writeDb(db);
+      }
+    }
 
     if (!user) {
-      return res.status(404).json({ error: 'Account profile not found in database. Please register first.' });
+      // Auto-register profile in database for existing Firebase Auth accounts
+      const finalUsername = email.split('@')[0] || 'player_' + Math.random().toString(36).substring(2, 7);
+      const userReferral = 'BET-' + finalUsername.substring(0, 4).toUpperCase() + Math.floor(100 + Math.random() * 900);
+      const role = (email.toLowerCase() === 'admin@betepro.com' || email.toLowerCase() === 'aburayhan10x@gmail.com') ? 'primary_admin' : 'user';
+
+      user = {
+        id: uid,
+        username: finalUsername,
+        email: email.toLowerCase(),
+        phone: '017' + Math.floor(10000000 + Math.random() * 90000000), 
+        role,
+        balance: 500,
+        referralCode: userReferral,
+        referredBy: undefined,
+        vipLevel: role === 'primary_admin' ? 4 : 0,
+        vipPoints: role === 'primary_admin' ? 60000 : 0,
+        isBlocked: false,
+        fullName: finalUsername,
+        createdAt: new Date().toISOString(),
+        passwordHash: '',
+        salt: ''
+      };
+
+      db.users.push(user);
+      await writeDb(db);
     }
 
     if (user.isBlocked) {
       return res.status(403).json({ error: 'This account has been suspended by an administrator.' });
+    }
+
+    // Ensure admin promotion if email is an admin email
+    if (email && (email.toLowerCase() === 'admin@betepro.com' || email.toLowerCase() === 'aburayhan10x@gmail.com') && user.role !== 'primary_admin') {
+      user.role = 'primary_admin';
+      await writeDb(db);
     }
 
     // Trigger daily-signin notification check or update last login
@@ -190,12 +230,54 @@ router.post('/admin-login', async (req, res) => {
 
     const decoded = await verifyFirebaseIdToken(idToken);
     const uid = decoded.uid;
+    const email = decoded.email || '';
 
     const db = await ensureDbLoaded('/api/auth/admin-login');
-    const user = db.users.find(u => u.id === uid);
+    let user = db.users.find(u => u.id === uid);
+
+    if (!user && email) {
+      // Check if there is a user with the same email but different ID (and update ID if so)
+      user = db.users.find(u => u.email.toLowerCase() === email.toLowerCase());
+      if (user) {
+        user.id = uid;
+        await writeDb(db);
+      }
+    }
+
+    const isAdminEmail = email && (email.toLowerCase() === 'admin@betepro.com' || email.toLowerCase() === 'aburayhan10x@gmail.com');
+
+    if (!user && isAdminEmail) {
+      // Create admin profile in the database
+      const finalUsername = email.split('@')[0] || 'admin_user';
+      const userReferral = 'BET-' + finalUsername.substring(0, 4).toUpperCase() + Math.floor(100 + Math.random() * 900);
+      user = {
+        id: uid,
+        username: finalUsername,
+        email: email.toLowerCase(),
+        phone: '017' + Math.floor(10000000 + Math.random() * 90000000), 
+        role: 'primary_admin',
+        balance: 100000,
+        referralCode: userReferral,
+        referredBy: undefined,
+        vipLevel: 4,
+        vipPoints: 60000,
+        isBlocked: false,
+        fullName: finalUsername,
+        createdAt: new Date().toISOString(),
+        passwordHash: '',
+        salt: ''
+      };
+      db.users.push(user);
+      await writeDb(db);
+    }
 
     if (!user) {
       return res.status(404).json({ error: 'Admin account profile not found in database.' });
+    }
+
+    if (isAdminEmail && user.role !== 'primary_admin') {
+      user.role = 'primary_admin';
+      await writeDb(db);
     }
 
     const allowedRoles = ['admin', 'super_admin', 'primary_admin', 'mod', 'moderator'];
