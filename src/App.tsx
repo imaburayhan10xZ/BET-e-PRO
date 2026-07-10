@@ -233,22 +233,19 @@ export default function App() {
     }
   }, [user, currentTab]);
 
-  // Background real-time profile sync for administrative staff (updates roles, permissions, balance immediately)
+  // Background real-time profile sync for all users (updates roles, permissions, balance instantly)
   useEffect(() => {
     if (!user) return;
     
     // Always refresh once on tab switches/changes
     fetchUserProfile();
 
-    const isStaff = user.role === 'admin' || user.role === 'mod' || user.role === 'primary_admin';
-    if (!isStaff) return;
-
     const interval = setInterval(() => {
       fetchUserProfile();
-    }, 4000); // Polling every 4 seconds
+    }, 5000); // Polling every 5 seconds
 
     return () => clearInterval(interval);
-  }, [user?.id, user?.role, currentTab]);
+  }, [user?.id, currentTab]);
 
   // Support manual URL change, page refreshes and browser history events for /cockpit
   useEffect(() => {
@@ -272,11 +269,18 @@ export default function App() {
     window.addEventListener('popstate', handleLocationChange);
     handleLocationChange(); // run immediately on load
 
-    // Synchronize client state with native Firebase Auth SDK
+    return () => {
+      window.removeEventListener('popstate', handleLocationChange);
+    };
+  }, [user?.role]); // Only re-subscribe if user role changes
+
+  // Synchronize client state with native Firebase Auth SDK (Subscribed ONCE on mount)
+  useEffect(() => {
     const unsubscribe = onAuthStateChanged(firebaseAuth, async (fbUser) => {
       if (fbUser) {
         try {
-          const token = await fbUser.getIdToken(true);
+          // Use cached token if valid (forceRefresh = false) to prevent auth/quota-exceeded
+          const token = await fbUser.getIdToken(false);
           localStorage.setItem('token', token);
           
           const res = await fetch('/api/auth/profile', {
@@ -302,14 +306,16 @@ export default function App() {
       }
     });
 
-    fetchPromotions();
-    fetchSettingsAndBanners();
-
     return () => {
-      window.removeEventListener('popstate', handleLocationChange);
       unsubscribe();
     };
-  }, [user]); // Add user as dependency so popstate handler can inspect correct role
+  }, []); // Run EXACTLY ONCE on mount to completely avoid infinite re-registration and token request loops!
+
+  // Fetch static settings, banners, and promotions once on mount
+  useEffect(() => {
+    fetchPromotions();
+    fetchSettingsAndBanners();
+  }, []);
 
   const navigateTo = (tab: string) => {
     // If user is admin/mod, they are locked to cockpit
@@ -1205,6 +1211,15 @@ export default function App() {
                         className="w-full py-3 rounded-xl border border-slate-200 hover:bg-slate-100 font-extrabold text-xs text-slate-700 transition"
                       >
                         Sign Out & Switch Account
+                      </button>
+                      <button
+                        onClick={() => {
+                          setCurrentTab('home');
+                          window.history.pushState({}, '', '/');
+                        }}
+                        className="w-full py-3 rounded-xl bg-[#1FA66A] hover:bg-[#1FA66A]/90 text-white font-extrabold text-xs transition shadow-sm"
+                      >
+                        Go to Player Portal (প্লেয়ার পোর্টালে যান)
                       </button>
                     </div>
                   ) : (

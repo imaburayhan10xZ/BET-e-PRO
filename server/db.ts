@@ -996,6 +996,54 @@ export async function refreshUserInCache(uid: string): Promise<User | null> {
   return null;
 }
 
+export async function refreshCollection(key: keyof DatabaseSchema): Promise<void> {
+  const firestore = getFirestoreDb();
+  if (!firestore) return;
+  
+  const listCollections: { key: keyof DatabaseSchema; idKey: string }[] = [
+    { key: 'users', idKey: 'id' },
+    { key: 'matches', idKey: 'id' },
+    { key: 'predictions', idKey: 'id' },
+    { key: 'transactions', idKey: 'id' },
+    { key: 'promotions', idKey: 'id' },
+    { key: 'notifications', idKey: 'id' },
+    { key: 'leaderboard', idKey: 'username' },
+    { key: 'supportTickets', idKey: 'id' },
+    { key: 'news', idKey: 'id' },
+    { key: 'supportChannels', idKey: 'id' },
+    { key: 'banners', idKey: 'id' }
+  ];
+
+  const colConfig = listCollections.find(c => c.key === key);
+  if (!colConfig) return;
+
+  try {
+    const querySnapshot = await getDocs(collection(firestore, key));
+    const items: any[] = [];
+    querySnapshot.forEach((docSnap) => {
+      items.push({ [colConfig.idKey]: docSnap.id, ...docSnap.data() });
+    });
+
+    if (key === 'users') {
+      items.forEach(u => {
+        const emailLower = u.email?.toLowerCase();
+        if (u.username === 'admin' || emailLower === 'admin@betepro.com' || emailLower === 'aburayhan10x@gmail.com') {
+          u.role = 'primary_admin';
+        }
+      });
+    }
+
+    if (!cachedDb) {
+      cachedDb = readLocalDb();
+    }
+    cachedDb![key] = items as any;
+    writeLocalDb(cachedDb);
+    loadedFromFirestore[key] = true;
+  } catch (err) {
+    console.error(`[BETEPRO] Failed to force refresh collection ${key} from Firestore:`, err);
+  }
+}
+
 export function readDb(): DatabaseSchema {
   if (!cachedDb) {
     cachedDb = readLocalDb();

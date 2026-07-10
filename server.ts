@@ -8,7 +8,7 @@ import path from 'path';
 import { 
   readDb, writeDb, tickLiveScores, 
   hashPassword, generateSalt, VIP_LEVELS,
-  DatabaseSchema, ensureDbLoaded
+  DatabaseSchema, ensureDbLoaded, refreshCollection
 } from './server/db.js';
 import { uploadToCloudinary } from './server/cloudinary.js';
 import { 
@@ -1867,7 +1867,12 @@ export function createApp() {
   // ==========================================
 
   // Manage Users - View All
-  app.get('/api/admin/users', authenticateToken, requireAdmin, (req, res) => {
+  app.get('/api/admin/users', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      await refreshCollection('users');
+    } catch (err) {
+      console.error('[BETEPRO] Error refreshing users collection:', err);
+    }
     const db = readDb();
     const clientUsers = db.users.map(u => ({
       id: u.id,
@@ -2769,7 +2774,12 @@ export function createApp() {
   // ==========================================
 
   // Get all admins & mods
-  app.get('/api/admin/admins', authenticateToken, requirePrimaryAdmin, (req, res) => {
+  app.get('/api/admin/admins', authenticateToken, requirePrimaryAdmin, async (req, res) => {
+    try {
+      await refreshCollection('users');
+    } catch (err) {
+      console.error('[BETEPRO] Error refreshing users for admin list:', err);
+    }
     const db = readDb();
     const admins = db.users.filter(u => u.role === 'admin' || u.role === 'mod');
     res.json(admins);

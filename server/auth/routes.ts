@@ -454,6 +454,11 @@ router.post('/firebase-sync', async (req, res) => {
       return res.status(403).json({ error: 'This account has been suspended. Please contact customer support.' });
     }
 
+    const adminRoles = ['admin', 'super_admin', 'primary_admin', 'mod', 'moderator'];
+    if (adminRoles.includes(user.role || '')) {
+      return res.status(403).json({ error: 'This login panel is for players only. Administrators/Moderators must log in via Cockpit.' });
+    }
+
     return res.json({
       token: idToken,
       user: {
