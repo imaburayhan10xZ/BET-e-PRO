@@ -74,8 +74,8 @@ const DEFAULT_SETTINGS: SystemSettings = {
   androidApkLink: '',
   iosAppLink: '',
   iosAvailable: false,
-  siteLogo: '',
-  siteFavicon: '',
+  siteLogo: '/logo.svg',
+  siteFavicon: '/favicon.svg',
 };
 
 function getSeedData(): DatabaseSchema {
@@ -700,6 +700,14 @@ export function readLocalDb(): DatabaseSchema {
       parsed.settings.iosAvailable = false;
       mutated = true;
     }
+    if (!parsed.settings.siteLogo) {
+      parsed.settings.siteLogo = '/logo.svg';
+      mutated = true;
+    }
+    if (!parsed.settings.siteFavicon) {
+      parsed.settings.siteFavicon = '/favicon.svg';
+      mutated = true;
+    }
     parsed.users?.forEach(u => {
       const emailLower = u.email?.toLowerCase();
       if (u.username === 'admin' || emailLower === 'admin@betepro.com' || emailLower === 'aburayhan10x@gmail.com') {
@@ -881,15 +889,19 @@ export async function ensureDbLoaded(reqPath?: string): Promise<DatabaseSchema> 
           'Firestore settings fetch timed out'
         );
         if (systemDoc.exists()) {
-          cachedDb!.settings = systemDoc.data() as SystemSettings;
+          const fsSettings = systemDoc.data() as SystemSettings;
+          if (!fsSettings.siteLogo) fsSettings.siteLogo = '/logo.svg';
+          if (!fsSettings.siteFavicon) fsSettings.siteFavicon = '/favicon.svg';
+          cachedDb!.settings = fsSettings;
         } else {
           console.log('[BETEPRO] Settings document not found in system. Seeding default...');
+          const seededSettings = { ...DEFAULT_SETTINGS, siteLogo: '/logo.svg', siteFavicon: '/favicon.svg' };
           await withTimeout(
-            setDoc(doc(firestore, 'settings', 'system'), DEFAULT_SETTINGS),
+            setDoc(doc(firestore, 'settings', 'system'), seededSettings),
             4000,
             'Firestore settings seed timed out'
           );
-          cachedDb!.settings = DEFAULT_SETTINGS;
+          cachedDb!.settings = seededSettings;
         }
         isSettingsLoaded = true;
       } catch (err) {

@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100" width="100%" height="100%">
+  <defs>
+    <!-- Background and Accent Gradients -->
+    <linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24" />
+      <stop offset="50%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#10b981" />
+    </linearGradient>
+    <linearGradient id="text-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#f3f4f6" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Icon Section -->
+  <g transform="translate(10, 10)">
+    <!-- Outer Shield / Hexagon -->
+    <polygon points="40,5 75,25 75,65 40,85 5,65 5,25" fill="#042a20" stroke="url(#logo-grad)" stroke-width="4" stroke-linejoin="round" />
+    
+    <!-- Inner Stylized "B" and Crown -->
+    <path d="M28,25 H45 C52,25 56,28 56,33 C56,37 52,40 45,40 H28 Z M28,40 H47 C54,40 58,43 58,49 C58,55 54,58 47,58 H28 Z" fill="url(#logo-grad)" />
+    <!-- Vertical Spine of B -->
+    <rect x="22" y="25" width="6" height="33" rx="1" fill="url(#logo-grad)" />
+    
+    <!-- Little Crown Accent on top of B -->
+    <path d="M30,13 L33,18 L40,15 L47,18 L50,13 L45,21 L35,21 Z" fill="#fbbf24" />
+  </g>
+  
+  <!-- Text Section -->
+  <g transform="translate(100, 62)">
+    <text font-family="'Inter', 'Space Grotesk', system-ui, sans-serif" font-weight="900" font-size="34" fill="url(#text-grad)" letter-spacing="1">BETE<tspan fill="#fbbf24">PRO</tspan></text>
+    <text font-family="'JetBrains Mono', monospace" font-weight="800" font-size="10" fill="#10b981" letter-spacing="4" x="2" y="18">SPORTS &amp; CASINO</text>
+  </g>
+</svg>
