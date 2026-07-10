@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { User as UserType, Transaction, SupportTicket, SystemSettings } from '../types';
 import { translations, Language } from '../utils/lang';
+import { requestNotificationPermission, playChimeSound } from '../utils/notifications';
 
 interface DashboardProps {
   user: UserType;
@@ -954,6 +955,44 @@ export default function Dashboard({ user, lang, onRefreshUser, onNavigate, initi
                     className="py-2.5 px-3 rounded-2xl bg-white/90 hover:bg-white text-xs font-black text-amber-950 text-center border border-amber-900/15 hover:border-amber-900/30 shadow-sm transition transform active:scale-95"
                   >
                     My Cards
+                  </button>
+                </div>
+              </div>
+
+              {/* LIVE PUSH NOTIFICATIONS CONTROLS CARD */}
+              <div className="bg-slate-900 text-white rounded-3xl p-5 shadow-lg border border-slate-800 relative overflow-hidden">
+                <div className="absolute right-[-10px] top-[-10px] opacity-10 pointer-events-none text-7xl select-none">
+                  🔔
+                </div>
+                <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                  <div className="space-y-1.5 text-center md:text-left flex-1">
+                    <div className="flex items-center justify-center md:justify-start space-x-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      <h4 className="text-xs font-black uppercase tracking-wider text-amber-300">
+                        Live Push Notifications (পুশ নোটিফিকেশন চালু করুন)
+                      </h4>
+                    </div>
+                    <p className="text-[11px] text-slate-300 font-medium">
+                      {lang === 'bn' 
+                        ? 'ডিপোজিট, উইথড্র সাকসেস বা ব্রডকাস্ট হলে মোবাইলে/ব্রাউজারে সাথে সাথে নোটিফিকেশন পান।' 
+                        : 'Get instant alerts on your screen/mobile for deposit status, withdrawals, and admin broadcasts.'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const permission = await requestNotificationPermission();
+                      if (permission === 'granted') {
+                        playChimeSound('success');
+                        alert(lang === 'bn' ? 'সফল হয়েছে! নোটিফিকেশন চালু করা হয়েছে।' : 'Success! Notification alerts have been enabled.');
+                      } else if (permission === 'denied') {
+                        alert(lang === 'bn' ? 'নোটিফিকেশন ব্লক করা আছে। ব্রাউজার সেটিংসে গিয়ে অনুমতি দিন।' : 'Notifications are blocked. Please enable them in your browser settings.');
+                      } else {
+                        alert(lang === 'bn' ? 'নোটিফিকেশন অনুমতি এখনো বাতিল বা পেন্ডিং আছে।' : 'Notification permission is still pending.');
+                      }
+                    }}
+                    className="w-full md:w-auto px-5 py-2.5 rounded-2xl bg-gradient-to-r from-[#1FA66A] to-[#168554] hover:from-[#24c07b] hover:to-[#1fa66a] text-white text-xs font-black transition-all shadow-md transform active:scale-95 flex items-center justify-center space-x-1.5"
+                  >
+                    <span>🔔 {lang === 'bn' ? 'চালু করুন' : 'Enable Live Alerts'}</span>
                   </button>
                 </div>
               </div>

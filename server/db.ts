@@ -74,6 +74,8 @@ const DEFAULT_SETTINGS: SystemSettings = {
   androidApkLink: '',
   iosAppLink: '',
   iosAvailable: false,
+  siteLogo: '',
+  siteFavicon: '',
 };
 
 function getSeedData(): DatabaseSchema {

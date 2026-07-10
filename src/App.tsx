@@ -3,16 +3,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Trophy, Flame, Bell, Globe, Sparkles, Star, Users, Phone, ShieldCheck, 
   HelpCircle, ChevronDown, CheckCircle2, AlertCircle, Play, ArrowRight, Wallet, Info, Mail, X, Loader2,
   Send, MessageSquare
 } from 'lucide-react';
-import { User, Notification, Match, Promotion, SupportChannel } from './types';
+import { User, Notification, Match, Promotion, SupportChannel, SystemSettings } from './types';
 import { translations, Language } from './utils/lang';
 import { auth as firebaseAuth } from './lib/firebase';
+import { triggerSystemNotification, playChimeSound, requestNotificationPermission } from './utils/notifications';
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
@@ -105,6 +106,172 @@ export default function App() {
       addToast(msgStr, type);
     };
   }, []);
+
+  // Tracking refs for Notifications and Admin Alerts
+  const prevNotificationsRef = useRef<Notification[]>([]);
+  const prevAdminTxIdsRef = useRef<Set<string>>(new Set());
+  const prevAdminTicketIdsRef = useRef<Set<string>>(new Set());
+  const hasInitializedAdminRefs = useRef<boolean>(false);
+
+  // Synchronize and notify users on new incoming player notifications
+  useEffect(() => {
+    if (!user) {
+      prevNotificationsRef.current = [];
+      return;
+    }
+    
+    // If the previous list was empty, initialize it with the current notifications to prevent historical alert spam
+    if (prevNotificationsRef.current.length === 0 && notifications.length > 0) {
+      prevNotificationsRef.current = notifications;
+      return;
+    }
+
+    // Check for any new unread notifications
+    const previousIds = new Set(prevNotificationsRef.current.map(n => n.id));
+    const newUnreadNotifs = notifications.filter(n => !previousIds.has(n.id) && !n.read);
+
+    if (newUnreadNotifs.length > 0) {
+      newUnreadNotifs.forEach((notif) => {
+        // Trigger native browser push notification
+        triggerSystemNotification(notif.title, notif.message, () => {
+          setCurrentTab('profile');
+        });
+        // Display custom animated Toast
+        addToast(`${notif.title}: ${notif.message}`, 'success');
+        // Play the chime audio alert
+        playChimeSound('success');
+      });
+    }
+
+    // Always update the ref with the latest list
+    prevNotificationsRef.current = notifications;
+  }, [notifications, user?.id]);
+
+  // Background poller for administrative staff to catch pending transactions & support tickets in real-time
+  useEffect(() => {
+    if (!user) {
+      prevAdminTxIdsRef.current.clear();
+      prevAdminTicketIdsRef.current.clear();
+      hasInitializedAdminRefs.current = false;
+      return;
+    }
+
+    const isStaff = user.role === 'admin' || user.role === 'mod' || user.role === 'primary_admin';
+    if (!isStaff) return;
+
+    const pollAdminEndpoints = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const headers = { 'Authorization': `Bearer ${token}` };
+
+      try {
+        // 1. Fetch Transactions
+        const txRes = await fetch('/api/admin/transactions', { headers });
+        if (txRes.ok) {
+          const transactionsList: any[] = await txRes.json();
+          const pendingTxs = transactionsList.filter(tx => tx.status === 'pending');
+
+          if (!hasInitializedAdminRefs.current) {
+            // First run: just seed the existing transactions
+            pendingTxs.forEach(tx => prevAdminTxIdsRef.current.add(tx.id));
+          } else {
+            // Subsequent runs: check if there is a NEW pending transaction that wasn't in our set
+            const newPendingTxs = pendingTxs.filter(tx => !prevAdminTxIdsRef.current.has(tx.id));
+            if (newPendingTxs.length > 0) {
+              newPendingTxs.forEach((tx) => {
+                const label = tx.type === 'deposit' ? '💳 New Deposit Request' : '📤 New Withdraw Request';
+                const message = `Amount: ৳${tx.amount} BDT from user ${tx.username} (${tx.paymentMethod})`;
+                
+                // Trigger native push notification
+                triggerSystemNotification(label, message, () => {
+                  setCurrentTab('cockpit');
+                });
+                
+                // Trigger app toast
+                addToast(`${label}: ৳${tx.amount} by ${tx.username}`, 'warning');
+                
+                // Play high-attention alert sound
+                playChimeSound('alert');
+
+                // Add to tracked pending transactions
+                prevAdminTxIdsRef.current.add(tx.id);
+              });
+            }
+
+            // Remove any transactions from our tracking set that are no longer pending
+            const currentPendingIds = new Set(pendingTxs.map(tx => tx.id));
+            prevAdminTxIdsRef.current.forEach((id) => {
+              if (!currentPendingIds.has(id)) {
+                prevAdminTxIdsRef.current.delete(id);
+              }
+            });
+          }
+        }
+
+        // 2. Fetch Support Tickets
+        const ticketRes = await fetch('/api/admin/tickets', { headers });
+        if (ticketRes.ok) {
+          const tickets: any[] = await ticketRes.json();
+          const openTickets = tickets.filter(t => t.status === 'open');
+
+          if (!hasInitializedAdminRefs.current) {
+            // First run: seed existing open ticket IDs
+            openTickets.forEach(t => prevAdminTicketIdsRef.current.add(t.id));
+          } else {
+            // Subsequent runs: alert for new open support tickets
+            const newOpenTickets = openTickets.filter(t => !prevAdminTicketIdsRef.current.has(t.id));
+            if (newOpenTickets.length > 0) {
+              newOpenTickets.forEach((t) => {
+                const label = '💬 New Support Ticket';
+                const message = `User ${t.username} opened a ticket: "${t.subject}"`;
+                
+                // Trigger native push notification
+                triggerSystemNotification(label, message, () => {
+                  setCurrentTab('cockpit');
+                });
+                
+                // Trigger app toast
+                addToast(`${label}: ${t.subject} by ${t.username}`, 'info');
+                
+                // Play alert sound
+                playChimeSound('info');
+
+                // Track the ticket ID
+                prevAdminTicketIdsRef.current.add(t.id);
+              });
+            }
+
+            // Remove solved or replied tickets from our tracking set
+            const currentOpenIds = new Set(openTickets.map(t => t.id));
+            prevAdminTicketIdsRef.current.forEach((id) => {
+              if (!currentOpenIds.has(id)) {
+                prevAdminTicketIdsRef.current.delete(id);
+              }
+            });
+          }
+        }
+
+        // Mark admin refs initialized after first success
+        hasInitializedAdminRefs.current = true;
+
+      } catch (err) {
+        console.error('[BETEPRO] Admin background poller error:', err);
+      }
+    };
+
+    // Run poll immediately on mount/role change
+    pollAdminEndpoints();
+
+    // Set polling interval every 8 seconds
+    const interval = setInterval(() => {
+      pollAdminEndpoints();
+    }, 8000);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [user?.id, user?.role]);
   
   // Auth state
   const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot' | null>(null);
@@ -123,6 +290,7 @@ export default function App() {
   const [activeSlide, setActiveSlide] = useState(0);
   const [banners, setBanners] = useState<any[]>([]);
   const [marqueeNotice, setMarqueeNotice] = useState('🎁🎁🎁 BETEPRO-তে স্বাগতম! নগদের মাধ্যমে প্রতিটি ডিপোজিটে ১.৫% বোনাস সরাসরি ওয়ালেট ব্যালেন্সে ইনস্ট্যান্ট যুক্ত হচ্ছে! এছাড়া রেফার করুন এবং প্রতি রেফারে ২০০ টাকা ফ্রি বোনাস লুফে নিন! 🎁🎁🎁');
+  const [systemSettings, setSystemSettings] = useState<SystemSettings | null>(null);
   
   // Support channels state
   const [supportChannels, setSupportChannels] = useState<SupportChannel[]>([]);
@@ -169,6 +337,7 @@ export default function App() {
       const resSettings = await fetch('/api/settings');
       if (resSettings.ok) {
         const data = await resSettings.json();
+        setSystemSettings(data);
         if (data && data.marqueeNotice) {
           setMarqueeNotice(data.marqueeNotice);
         }
@@ -189,6 +358,24 @@ export default function App() {
       console.error(e);
     }
   };
+
+  // Dynamic Page Title and Favicon custom sync
+  useEffect(() => {
+    if (systemSettings) {
+      if (systemSettings.siteName) {
+        document.title = systemSettings.siteName;
+      }
+      if (systemSettings.siteFavicon) {
+        let link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
+        if (!link) {
+          link = document.createElement('link');
+          link.rel = 'icon';
+          document.getElementsByTagName('head')[0].appendChild(link);
+        }
+        link.href = systemSettings.siteFavicon;
+      }
+    }
+  }, [systemSettings]);
 
   // Fetch Auth details on mount
   const fetchUserProfile = async () => {
@@ -348,8 +535,13 @@ export default function App() {
     }
     localStorage.removeItem('token');
     setUser(null);
-    setCurrentTab('home');
-    window.history.pushState({}, '', '/');
+    if (currentTab === 'cockpit' || window.location.pathname === '/cockpit') {
+      setCurrentTab('cockpit');
+      window.history.pushState({}, '', '/cockpit');
+    } else {
+      setCurrentTab('home');
+      window.history.pushState({}, '', '/');
+    }
   };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -637,16 +829,26 @@ export default function App() {
           onOpenAuth={(mode) => { setAuthMode(mode); setAuthError(''); setAuthSuccess(''); }}
           notifications={notifications}
           onMarkNotificationsRead={handleMarkNotificationsRead}
+          systemSettings={systemSettings}
         />
       ) : (
         <header className="w-full border-b border-slate-200/20 bg-[#021813] sticky top-0 z-50">
           <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
-            <div className="flex items-center space-x-2">
-              <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-gradient-to-br from-yellow-500 via-amber-500 to-emerald-600 text-black font-black text-xl shadow-lg shadow-emerald-500/10">
-                B
-              </div>
+            <div className="flex items-center space-x-2 cursor-pointer" onClick={() => navigateTo('home')}>
+              {systemSettings?.siteLogo ? (
+                <img 
+                  src={systemSettings.siteLogo} 
+                  alt={systemSettings.siteName || "Logo"} 
+                  className="h-10 w-auto object-contain rounded-lg"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-gradient-to-br from-yellow-500 via-amber-500 to-emerald-600 text-black font-black text-xl shadow-lg shadow-emerald-500/10">
+                  {systemSettings?.siteName ? systemSettings.siteName.charAt(0).toUpperCase() : 'B'}
+                </div>
+              )}
               <div>
-                <span className="shiny-logo-text text-lg sm:text-2xl block tracking-wide select-none">BETEPRO.COM</span>
+                <span className="shiny-logo-text text-lg sm:text-2xl block tracking-wide select-none">{systemSettings?.siteName || "BETEPRO.COM"}</span>
                 <span className="text-[9px] font-black tracking-widest text-[#FF9F00] uppercase block leading-none font-mono">Cockpit Admin Control</span>
               </div>
             </div>

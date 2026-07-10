@@ -16,6 +16,8 @@ interface SettingsPanelProps {
 
 export default function SettingsPanel({ settings, loading, onRefresh }: SettingsPanelProps) {
   const [siteName, setSiteName] = useState('BetePro BDT');
+  const [siteLogo, setSiteLogo] = useState('');
+  const [siteFavicon, setSiteFavicon] = useState('');
   const [minDeposit, setMinDeposit] = useState('200');
   const [minWithdraw, setMinWithdraw] = useState('500');
   const [bKashNumber, setBKashNumber] = useState('');
@@ -36,10 +38,14 @@ export default function SettingsPanel({ settings, loading, onRefresh }: Settings
 
   const [feedback, setFeedback] = useState('');
   const [saveLoading, setSaveLoading] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingFavicon, setUploadingFavicon] = useState(false);
 
   useEffect(() => {
     if (settings) {
       setSiteName(settings.siteName || 'BetePro BDT');
+      setSiteLogo(settings.siteLogo || '');
+      setSiteFavicon(settings.siteFavicon || '');
       setMinDeposit(settings.minDeposit?.toString() || '200');
       setMinWithdraw(settings.minWithdraw?.toString() || '500');
       setBKashNumber(settings.bKashNumber || '');
@@ -60,6 +66,48 @@ export default function SettingsPanel({ settings, loading, onRefresh }: Settings
     }
   }, [settings]);
 
+  const handleImageUpload = async (file: File, type: 'logo' | 'favicon') => {
+    try {
+      if (type === 'logo') setUploadingLogo(true);
+      if (type === 'favicon') setUploadingFavicon(true);
+
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onloadend = async () => {
+        const base64data = reader.result;
+        
+        const token = localStorage.getItem('token');
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ image: base64data })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (type === 'logo') {
+            setSiteLogo(data.imageUrl);
+          } else {
+            setSiteFavicon(data.imageUrl);
+          }
+        } else {
+          alert('Failed to upload image. Please try again.');
+        }
+
+        if (type === 'logo') setUploadingLogo(false);
+        if (type === 'favicon') setUploadingFavicon(false);
+      };
+    } catch (e) {
+      console.error(e);
+      alert('Upload error.');
+      if (type === 'logo') setUploadingLogo(false);
+      if (type === 'favicon') setUploadingFavicon(false);
+    }
+  };
+
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -74,6 +122,8 @@ export default function SettingsPanel({ settings, loading, onRefresh }: Settings
         },
         body: JSON.stringify({
           siteName,
+          siteLogo,
+          siteFavicon,
           minDeposit,
           minWithdraw,
           bKashNumber,
@@ -132,15 +182,135 @@ export default function SettingsPanel({ settings, loading, onRefresh }: Settings
       <form onSubmit={handleSaveSettings} className="space-y-4 text-xs">
         
         {/* Brand details */}
-        <div className="space-y-1">
-          <label className="text-[10px] font-bold text-slate-400 uppercase">Platform Site Name</label>
-          <input
-            type="text"
-            required
-            value={siteName}
-            onChange={(e) => setSiteName(e.target.value)}
-            className="w-full rounded-xl bg-slate-50 border border-slate-200 p-3 text-slate-800 font-bold focus:bg-white focus:outline-none"
-          />
+        <div className="space-y-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+          <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 block">🌐 Brand Identity & Assets</span>
+          
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-slate-500 uppercase">Platform Site Name</label>
+            <input
+              type="text"
+              required
+              value={siteName}
+              onChange={(e) => setSiteName(e.target.value)}
+              className="w-full rounded-xl bg-white border border-slate-200 p-3 text-slate-800 font-bold focus:outline-none"
+            />
+          </div>
+
+          {/* Site Logo */}
+          <div className="space-y-1.5 pt-2.5 border-t border-slate-200/60">
+            <div className="flex justify-between items-center">
+              <label className="text-[10px] font-bold text-slate-500 uppercase">Site Logo (সাইট লোগো)</label>
+              {siteLogo && (
+                <button 
+                  type="button" 
+                  onClick={() => setSiteLogo('')} 
+                  className="text-[9px] font-bold text-rose-500 hover:underline cursor-pointer"
+                >
+                  Clear Logo
+                </button>
+              )}
+            </div>
+            
+            <div className="flex items-center space-x-3">
+              {siteLogo ? (
+                <div className="h-11 w-11 bg-slate-900 rounded-xl p-1 border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden">
+                  <img src={siteLogo} alt="Logo preview" className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" />
+                </div>
+              ) : (
+                <div className="h-11 w-11 bg-slate-100 rounded-xl border border-slate-200 flex items-center justify-center text-[9px] text-slate-400 font-bold font-mono shrink-0 select-none">
+                  NO LOGO
+                </div>
+              )}
+              
+              <div className="flex-1 space-y-1">
+                <input
+                  type="text"
+                  value={siteLogo}
+                  onChange={(e) => setSiteLogo(e.target.value)}
+                  placeholder="Paste image link/URL"
+                  className="w-full rounded-lg bg-white border border-slate-200 px-2.5 py-1.5 text-[11px] text-slate-800 focus:outline-none font-mono"
+                />
+                
+                <div className="flex items-center space-x-2">
+                  <span className="text-[9px] text-slate-400">or</span>
+                  <label className="cursor-pointer text-[9px] font-black text-indigo-600 hover:text-indigo-800 transition">
+                    {uploadingLogo ? 'Uploading...' : '📁 Upload Logo File'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleImageUpload(file, 'logo');
+                      }}
+                      disabled={uploadingLogo}
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+            <p className="text-[9px] text-slate-400 font-medium leading-relaxed">
+              সরাসরি আপনার লোগো ফাইল আপলোড করতে পারেন অথবা যেকোনো ইমেজের লিংক বসিয়ে দিতে পারেন।
+            </p>
+          </div>
+
+          {/* Site Favicon */}
+          <div className="space-y-1.5 pt-2.5 border-t border-slate-200/60">
+            <div className="flex justify-between items-center">
+              <label className="text-[10px] font-bold text-slate-500 uppercase">Site Favicon (ট্যাব আইকন)</label>
+              {siteFavicon && (
+                <button 
+                  type="button" 
+                  onClick={() => setSiteFavicon('')} 
+                  className="text-[9px] font-bold text-rose-500 hover:underline cursor-pointer"
+                >
+                  Clear Favicon
+                </button>
+              )}
+            </div>
+            
+            <div className="flex items-center space-x-3">
+              {siteFavicon ? (
+                <div className="h-11 w-11 bg-white rounded-xl p-2 border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden">
+                  <img src={siteFavicon} alt="Favicon preview" className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" />
+                </div>
+              ) : (
+                <div className="h-11 w-11 bg-slate-100 rounded-xl border border-slate-200 flex items-center justify-center text-[9px] text-slate-400 font-bold font-mono shrink-0 select-none">
+                  FAVICON
+                </div>
+              )}
+              
+              <div className="flex-1 space-y-1">
+                <input
+                  type="text"
+                  value={siteFavicon}
+                  onChange={(e) => setSiteFavicon(e.target.value)}
+                  placeholder="Paste favicon image link/URL"
+                  className="w-full rounded-lg bg-white border border-slate-200 px-2.5 py-1.5 text-[11px] text-slate-800 focus:outline-none font-mono"
+                />
+                
+                <div className="flex items-center space-x-2">
+                  <span className="text-[9px] text-slate-400">or</span>
+                  <label className="cursor-pointer text-[9px] font-black text-indigo-600 hover:text-indigo-800 transition">
+                    {uploadingFavicon ? 'Uploading...' : '📁 Upload Favicon File'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleImageUpload(file, 'favicon');
+                      }}
+                      disabled={uploadingFavicon}
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+            <p className="text-[9px] text-slate-400 font-medium leading-relaxed">
+              Favicon হল ব্রাউজারের ট্যাবে প্রদর্শিত ছোট আইকন। এখানে যেকোনো স্কয়ার সাইজের ছবি আপলোড করুন।
+            </p>
+          </div>
         </div>
 
         {/* Maintenance Mode (Toggle switch!) */}

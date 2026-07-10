@@ -2555,7 +2555,8 @@ export function createApp() {
       bKashNumber, nagadNumber, rocketNumber, referralBonus,
       userWinningPercentage, maxWinPercentageOfDeposit, marqueeNotice,
       dailyBonusCountLimit, dailyBonusAmount, bonusWinRatePercentage,
-      signupBonusAmount, referralBonusAmount, androidApkLink, iosAppLink, iosAvailable
+      signupBonusAmount, referralBonusAmount, androidApkLink, iosAppLink, iosAvailable,
+      siteLogo, siteFavicon
     } = req.body;
     const db = readDb();
 
@@ -2578,6 +2579,8 @@ export function createApp() {
     if (androidApkLink !== undefined) db.settings.androidApkLink = androidApkLink;
     if (iosAppLink !== undefined) db.settings.iosAppLink = iosAppLink;
     if (iosAvailable !== undefined) db.settings.iosAvailable = !!iosAvailable;
+    if (siteLogo !== undefined) db.settings.siteLogo = siteLogo;
+    if (siteFavicon !== undefined) db.settings.siteFavicon = siteFavicon;
 
     writeDb(db);
     res.json({ message: 'Global platform settings updated successfully!', settings: db.settings });

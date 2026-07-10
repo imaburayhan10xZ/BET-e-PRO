@@ -11,6 +11,7 @@ import {
   ChevronLeft, ChevronRight 
 } from 'lucide-react';
 import { User, Transaction, Match, SupportTicket, SystemSettings, Promotion } from '../types';
+import { requestNotificationPermission, playChimeSound } from '../utils/notifications';
 
 import AnalyticsPanel from './admin/AnalyticsPanel';
 import UsersPanel from './admin/UsersPanel';
@@ -311,6 +312,40 @@ export default function AdminPanel({ user, onRefreshUser }: AdminPanelProps) {
 
       {/* RENDER ACTIVE TAB COMPONENT */}
       <div className="flex-1 w-full bg-white/85 backdrop-blur-md p-6 rounded-2xl border border-slate-200/80 shadow-sm min-h-[450px] overflow-hidden">
+        {/* Real-time Push Alert activation banner for administrators */}
+        <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center space-x-3 text-center sm:text-left">
+            <span className="flex h-3 w-3 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
+            </span>
+            <div>
+              <h4 className="text-xs font-black text-amber-950 uppercase tracking-wider">
+                Live Admin Push Alerts (অ্যাডমিন রিয়েল-টাইম নোটিফিকেশন)
+              </h4>
+              <p className="text-[11px] text-amber-900/80 font-medium">
+                বিকাশ/নগদ ডিপোজিট বা উইথড্র রিকোয়েস্ট আসার সাথে সাথে মোবাইলে/পিসিতে রিংটোন এবং পুশ নোটিফিকেশন পেতে চালু করুন।
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={async () => {
+              const permission = await requestNotificationPermission();
+              if (permission === 'granted') {
+                playChimeSound('success');
+                alert('সফল হয়েছে! নোটিফিকেশন চালু করা হয়েছে। (Success! Live Admin Alerts activated.)');
+              } else if (permission === 'denied') {
+                alert('নোটিফিকেশন ব্লক করা আছে। ব্রাউজার সেটিংসে গিয়ে অনুমতি দিন। (Notifications are blocked. Please allow in settings.)');
+              } else {
+                alert('নোটিফিকেশন অনুমতি পেন্ডিং আছে। (Permission is pending.)');
+              }
+            }}
+            className="shrink-0 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-black transition-all shadow-sm flex items-center space-x-1.5"
+          >
+            <span>🔔 Live Alerts চালু করুন</span>
+          </button>
+        </div>
+
         {!hasAccess(activeTab) ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <ShieldAlert className="h-16 w-16 text-rose-500 mb-4 animate-bounce" />

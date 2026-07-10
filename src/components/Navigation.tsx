@@ -9,7 +9,7 @@ import {
   Home, Trophy, Flame, User, Bell, ShieldCheck, Gift, Sparkles, Users,
   Wallet, LogIn, LogOut, Globe, MessageCircle, Menu, X, ArrowRight
 } from 'lucide-react';
-import { User as UserType, Notification } from '../types';
+import { User as UserType, Notification, SystemSettings } from '../types';
 import { translations, Language } from '../utils/lang';
 
 interface NavigationProps {
@@ -22,6 +22,7 @@ interface NavigationProps {
   onOpenAuth: (mode: 'login' | 'register') => void;
   notifications: Notification[];
   onMarkNotificationsRead: () => void;
+  systemSettings?: SystemSettings | null;
 }
 
 export default function Navigation({
@@ -33,7 +34,8 @@ export default function Navigation({
   onLogout,
   onOpenAuth,
   notifications,
-  onMarkNotificationsRead
+  onMarkNotificationsRead,
+  systemSettings
 }: NavigationProps) {
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
@@ -76,14 +78,25 @@ export default function Navigation({
             className="flex cursor-pointer items-center space-x-2"
             id="app-header-logo"
           >
-            <div className="flex md:hidden h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-tr from-amber-400 to-yellow-500 text-black font-black text-sm shadow-md">
-              BP
-            </div>
-            <div className="hidden md:flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-yellow-500 via-amber-500 to-emerald-600 text-black font-black text-xl shadow-lg shadow-emerald-500/10">
-              B
-            </div>
+            {systemSettings?.siteLogo ? (
+              <img 
+                src={systemSettings.siteLogo} 
+                alt={systemSettings.siteName || "Logo"} 
+                className="h-10 w-auto object-contain rounded-lg"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <>
+                <div className="flex md:hidden h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-tr from-amber-400 to-yellow-500 text-black font-black text-sm shadow-md">
+                  BP
+                </div>
+                <div className="hidden md:flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-yellow-500 via-amber-500 to-emerald-600 text-black font-black text-xl shadow-lg shadow-emerald-500/10">
+                  {systemSettings?.siteName ? systemSettings.siteName.charAt(0).toUpperCase() : 'B'}
+                </div>
+              </>
+            )}
             <div>
-              <span className="shiny-logo-text text-lg sm:text-2xl block tracking-wide">BETEPRO.COM</span>
+              <span className="shiny-logo-text text-lg sm:text-2xl block tracking-wide">{systemSettings?.siteName || "BETEPRO.COM"}</span>
             </div>
           </div>
 
@@ -249,7 +262,16 @@ export default function Navigation({
             <div className="space-y-5">
               <div className="border-b border-[#0e4b3c] pb-4 mb-4 flex items-center justify-between">
                 <span className="text-xs font-mono uppercase text-yellow-400">{t.sports} & CASINO</span>
-                <span className="shiny-logo-text text-sm">BETEPRO.COM</span>
+                {systemSettings?.siteLogo ? (
+                  <img 
+                    src={systemSettings.siteLogo} 
+                    alt={systemSettings.siteName || "Logo"} 
+                    className="h-8 w-auto object-contain rounded-lg"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <span className="shiny-logo-text text-sm">{systemSettings?.siteName || "BETEPRO.COM"}</span>
+                )}
               </div>
               <button 
                 onClick={() => { onNavigate('home'); setShowMobileMenu(false); }}

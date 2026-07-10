@@ -160,6 +160,8 @@ export interface SystemSettings {
   androidApkLink?: string;
   iosAppLink?: string;
   iosAvailable?: boolean;
+  siteLogo?: string;
+  siteFavicon?: string;
 }
 
 export interface SupportChannel {
