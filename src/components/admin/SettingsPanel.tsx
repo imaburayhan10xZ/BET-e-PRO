@@ -25,6 +25,14 @@ export default function SettingsPanel({ settings, loading, onRefresh }: Settings
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [userWinningPercentage, setUserWinningPercentage] = useState('70');
   const [maxWinPercentageOfDeposit, setMaxWinPercentageOfDeposit] = useState('200');
+  const [dailyBonusCountLimit, setDailyBonusCountLimit] = useState('1');
+  const [dailyBonusAmount, setDailyBonusAmount] = useState('10');
+  const [bonusWinRatePercentage, setBonusWinRatePercentage] = useState('30');
+  const [signupBonusAmount, setSignupBonusAmount] = useState('500');
+  const [referralBonusAmount, setReferralBonusAmount] = useState('200');
+  const [androidApkLink, setAndroidApkLink] = useState('');
+  const [iosAppLink, setIosAppLink] = useState('');
+  const [iosAvailable, setIosAvailable] = useState(false);
 
   const [feedback, setFeedback] = useState('');
   const [saveLoading, setSaveLoading] = useState(false);
@@ -41,6 +49,14 @@ export default function SettingsPanel({ settings, loading, onRefresh }: Settings
       setMaintenanceMode((settings as any).maintenanceMode || false);
       setUserWinningPercentage((settings as any).userWinningPercentage?.toString() || '70');
       setMaxWinPercentageOfDeposit((settings as any).maxWinPercentageOfDeposit?.toString() || '200');
+      setDailyBonusCountLimit((settings as any).dailyBonusCountLimit?.toString() || '1');
+      setDailyBonusAmount((settings as any).dailyBonusAmount?.toString() || '10');
+      setBonusWinRatePercentage((settings as any).bonusWinRatePercentage?.toString() || '30');
+      setSignupBonusAmount(settings.signupBonusAmount?.toString() || '500');
+      setReferralBonusAmount(settings.referralBonusAmount?.toString() || '200');
+      setAndroidApkLink(settings.androidApkLink || '');
+      setIosAppLink(settings.iosAppLink || '');
+      setIosAvailable(!!settings.iosAvailable);
     }
   }, [settings]);
 
@@ -66,7 +82,15 @@ export default function SettingsPanel({ settings, loading, onRefresh }: Settings
           referralBonus,
           maintenanceMode,
           userWinningPercentage: parseFloat(userWinningPercentage),
-          maxWinPercentageOfDeposit: parseFloat(maxWinPercentageOfDeposit)
+          maxWinPercentageOfDeposit: parseFloat(maxWinPercentageOfDeposit),
+          dailyBonusCountLimit: parseInt(dailyBonusCountLimit),
+          dailyBonusAmount: parseFloat(dailyBonusAmount),
+          bonusWinRatePercentage: parseFloat(bonusWinRatePercentage),
+          signupBonusAmount: parseFloat(signupBonusAmount),
+          referralBonusAmount: parseFloat(referralBonusAmount),
+          androidApkLink,
+          iosAppLink,
+          iosAvailable
         })
       });
       const data = await res.json();
@@ -207,6 +231,135 @@ export default function SettingsPanel({ settings, loading, onRefresh }: Settings
               />
               <span className="text-[9px] text-slate-400 font-medium">Max payout cap of total deposits.</span>
             </div>
+          </div>
+        </div>
+
+        {/* Free Daily Bonus Control */}
+        <div className="space-y-3 border-t border-slate-100 pt-3.5 bg-slate-50/50 p-3 rounded-2xl border border-slate-100">
+          <span className="text-[9px] font-black uppercase tracking-widest text-indigo-600 block">🎁 Free Daily Bonus Control</span>
+          
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase">Daily Claim Limit (Times)</label>
+              <input
+                type="number"
+                required
+                min="0"
+                value={dailyBonusCountLimit}
+                onChange={(e) => setDailyBonusCountLimit(e.target.value)}
+                className="w-full rounded-xl bg-white border border-slate-200 p-3 text-slate-900 focus:bg-white focus:outline-none font-bold"
+              />
+              <span className="text-[9px] text-slate-400 font-medium leading-relaxed block">How many times a user can claim daily.</span>
+            </div>
+            
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase">Bonus Amount (৳ BDT)</label>
+              <input
+                type="number"
+                required
+                min="0"
+                value={dailyBonusAmount}
+                onChange={(e) => setDailyBonusAmount(e.target.value)}
+                className="w-full rounded-xl bg-white border border-slate-200 p-3 text-slate-900 focus:bg-white focus:outline-none font-bold"
+              />
+              <span className="text-[9px] text-slate-400 font-medium leading-relaxed block">Amount added to wallet per claim.</span>
+            </div>
+          </div>
+
+          <div className="space-y-1 pt-1.5">
+            <label className="text-[10px] font-bold text-slate-500 uppercase">Bonus Play Win Chance %</label>
+            <input
+              type="number"
+              required
+              min="0"
+              max="100"
+              value={bonusWinRatePercentage}
+              onChange={(e) => setBonusWinRatePercentage(e.target.value)}
+              className="w-full rounded-xl bg-white border border-slate-200 p-3 text-slate-900 focus:bg-white focus:outline-none font-bold"
+            />
+            <span className="text-[9px] text-slate-400 font-medium leading-relaxed block">
+              Win rate applied strictly when user plays games using bonus money (zero deposit or recent check-in).
+            </span>
+          </div>
+        </div>
+
+        {/* Free Registration & Referral Bonus Control */}
+        <div className="space-y-3 border-t border-slate-100 pt-3.5 bg-slate-50/50 p-3 rounded-2xl border border-slate-100">
+          <span className="text-[9px] font-black uppercase tracking-widest text-teal-600 block">🎁 Signup & Referral Reg Bonus</span>
+          
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase">Signup Free Bonus (৳ BDT)</label>
+              <input
+                type="number"
+                required
+                min="0"
+                value={signupBonusAmount}
+                onChange={(e) => setSignupBonusAmount(e.target.value)}
+                className="w-full rounded-xl bg-white border border-slate-200 p-3 text-slate-900 focus:bg-white focus:outline-none font-bold"
+              />
+              <span className="text-[9px] text-slate-400 font-medium leading-relaxed block">Automatically given to new users.</span>
+            </div>
+            
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase">Referral Reward (৳ BDT)</label>
+              <input
+                type="number"
+                required
+                min="0"
+                value={referralBonusAmount}
+                onChange={(e) => setReferralBonusAmount(e.target.value)}
+                className="w-full rounded-xl bg-white border border-slate-200 p-3 text-slate-900 focus:bg-white focus:outline-none font-bold"
+              />
+              <span className="text-[9px] text-slate-400 font-medium leading-relaxed block">Given to referrer upon successful sign up.</span>
+            </div>
+          </div>
+        </div>
+
+        {/* App Download Links Control */}
+        <div className="space-y-3 border-t border-slate-100 pt-3.5 bg-slate-50/50 p-3 rounded-2xl border border-slate-100">
+          <span className="text-[9px] font-black uppercase tracking-widest text-[#FF9F00] block">📱 App Download Configuration</span>
+          
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-slate-500 uppercase">Android APK Download Link</label>
+            <input
+              type="text"
+              value={androidApkLink}
+              onChange={(e) => setAndroidApkLink(e.target.value)}
+              className="w-full rounded-xl bg-white border border-slate-200 p-3 text-slate-900 focus:bg-white focus:outline-none font-mono"
+              placeholder="e.g. https://domain.com/app.apk"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-slate-500 uppercase">iOS App Store / PWA Link</label>
+            <input
+              type="text"
+              value={iosAppLink}
+              onChange={(e) => setIosAppLink(e.target.value)}
+              className="w-full rounded-xl bg-white border border-slate-200 p-3 text-slate-900 focus:bg-white focus:outline-none font-mono"
+              placeholder="e.g. https://apps.apple.com/..."
+            />
+          </div>
+
+          <div className="flex items-center justify-between bg-amber-50/50 border border-amber-100 p-2.5 rounded-xl">
+            <div className="space-y-0.5">
+              <span className="text-[10px] font-bold text-amber-800 uppercase block">iOS App Availability</span>
+              <span className="text-[9px] text-slate-500 leading-normal block">
+                Toggle to show as "Unavailable" (under construction) or display download link.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIosAvailable(!iosAvailable)}
+              className={`w-10 h-5 flex items-center rounded-full p-0.5 cursor-pointer transition-colors shrink-0 ${
+                iosAvailable ? 'bg-amber-500' : 'bg-slate-300'
+              }`}
+            >
+              <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${
+                iosAvailable ? 'translate-x-5' : 'translate-x-0'
+              }`} />
+            </button>
           </div>
         </div>
 

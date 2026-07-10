@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { ensureDbLoaded, readDb, writeDb } from '../db.js';
+import { ensureDbLoaded, readDb, writeDb, refreshUserInCache } from '../db.js';
 import { verifyFirebaseIdToken } from './verifyToken.js';
 import { authenticateToken, AuthenticatedRequest } from './authMiddleware.js';
 import { getFirebaseConfig } from './firebase.js';
@@ -44,7 +44,9 @@ router.post('/register', async (req, res) => {
     }
 
     const userReferral = 'BET-' + username.substring(0, 4).toUpperCase() + Math.floor(100 + Math.random() * 900);
-    const startBalance = referredBy ? 700 : 500; 
+    const signupBonus = db.settings.signupBonusAmount !== undefined ? db.settings.signupBonusAmount : 500;
+    const referralBonus = db.settings.referralBonusAmount !== undefined ? db.settings.referralBonusAmount : 200;
+    const startBalance = referredBy ? signupBonus + referralBonus : signupBonus; 
 
     // Create profile
     const newUser = {
@@ -81,13 +83,13 @@ router.post('/register', async (req, res) => {
     if (referredBy) {
       const referrer = db.users.find(u => u.id === referredBy);
       if (referrer) {
-        referrer.balance += 200; // Credited ৳200 bonus
+        referrer.balance += referralBonus; // Dynamic referral bonus
         db.transactions.push({
           id: 'tx_' + Math.random().toString(36).substr(2, 9),
           userId: referrer.id,
           username: referrer.username,
           type: 'referral_bonus' as const,
-          amount: 200,
+          amount: referralBonus,
           status: 'success' as const,
           description: `Referral bonus for inviting ${username}`,
           createdAt: new Date().toISOString()
@@ -96,7 +98,7 @@ router.post('/register', async (req, res) => {
           id: 'notif_' + Math.random().toString(36).substr(2, 9),
           userId: referrer.id,
           title: '👥 Referral Bonus Credited!',
-          message: `Your friend ${fullName} registered using your link. ৳200 referral bonus was added to your wallet!`,
+          message: `Your friend ${fullName} registered using your link. ৳${referralBonus} referral bonus was added to your wallet!`,
           read: false,
           createdAt: new Date().toISOString()
         });
@@ -143,6 +145,7 @@ router.post('/login', async (req, res) => {
     const email = decoded.email || '';
 
     const db = await ensureDbLoaded('/api/auth/login');
+    await refreshUserInCache(uid);
     let user = db.users.find(u => u.id === uid);
 
     if (!user && email) {
@@ -160,13 +163,14 @@ router.post('/login', async (req, res) => {
       const userReferral = 'BET-' + finalUsername.substring(0, 4).toUpperCase() + Math.floor(100 + Math.random() * 900);
       const role = (email.toLowerCase() === 'admin@betepro.com' || email.toLowerCase() === 'aburayhan10x@gmail.com') ? 'primary_admin' : 'user';
 
+      const finalSignupBonus = db.settings.signupBonusAmount !== undefined ? db.settings.signupBonusAmount : 500;
       user = {
         id: uid,
         username: finalUsername,
         email: email.toLowerCase(),
         phone: '017' + Math.floor(10000000 + Math.random() * 90000000), 
         role,
-        balance: 500,
+        balance: finalSignupBonus,
         referralCode: userReferral,
         referredBy: undefined,
         vipLevel: role === 'primary_admin' ? 4 : 0,
@@ -192,23 +196,19 @@ router.post('/login', async (req, res) => {
       await writeDb(db);
     }
 
+    const adminRoles = ['admin', 'super_admin', 'primary_admin', 'mod', 'moderator'];
+    if (adminRoles.includes(user.role || '')) {
+      return res.status(403).json({ error: 'This login panel is for players only. Administrators/Moderators must log in via Cockpit.' });
+    }
+
     // Trigger daily-signin notification check or update last login
     const notifications = db.notifications.filter(n => n.userId === user.id);
 
     return res.json({
       token: idToken,
       user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
-        balance: user.balance,
-        referralCode: user.referralCode,
-        vipLevel: user.vipLevel,
-        vipPoints: user.vipPoints,
-        fullName: user.fullName,
-        createdAt: user.createdAt
+        ...user,
+        email: user.email || email
       },
       notifications
     });
@@ -223,16 +223,53 @@ router.post('/login', async (req, res) => {
  */
 router.post('/admin-login', async (req, res) => {
   try {
-    const { idToken } = req.body;
-    if (!idToken) {
-      return res.status(400).json({ error: 'Firebase ID Token is required for Admin login.' });
+    const { idToken, email: reqEmail, password: reqPassword } = req.body;
+    
+    let uid = '';
+    let email = '';
+    let responseToken = '';
+
+    if (idToken) {
+      const decoded = await verifyFirebaseIdToken(idToken);
+      uid = decoded.uid;
+      email = decoded.email || '';
+      responseToken = idToken;
+    } else if (reqEmail && reqPassword) {
+      // Direct sign in via Firebase Auth REST API to support older frontend clients
+      const config = getFirebaseConfig();
+      let loginEmail = reqEmail.trim();
+      if (!loginEmail.includes('@')) {
+        loginEmail = `${loginEmail.toLowerCase()}@betepro.com`;
+      }
+
+      const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${config.apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: loginEmail,
+          password: reqPassword,
+          returnSecureToken: true
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        let errorMsg = data.error?.message || 'Authentication failed.';
+        if (errorMsg === 'INVALID_PASSWORD' || errorMsg === 'EMAIL_NOT_FOUND' || errorMsg === 'INVALID_LOGIN_CREDENTIALS') {
+          errorMsg = 'Invalid admin credentials.';
+        }
+        return res.status(401).json({ error: errorMsg });
+      }
+
+      uid = data.localId;
+      email = data.email || '';
+      responseToken = data.idToken;
+    } else {
+      return res.status(400).json({ error: 'Firebase ID Token or Admin credentials are required.' });
     }
 
-    const decoded = await verifyFirebaseIdToken(idToken);
-    const uid = decoded.uid;
-    const email = decoded.email || '';
-
     const db = await ensureDbLoaded('/api/auth/admin-login');
+    await refreshUserInCache(uid);
     let user = db.users.find(u => u.id === uid);
 
     if (!user && email) {
@@ -288,19 +325,10 @@ router.post('/admin-login', async (req, res) => {
     const notifications = db.notifications.filter(n => n.userId === user.id);
 
     return res.json({
-      token: idToken,
+      token: responseToken,
       user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
-        balance: user.balance,
-        referralCode: user.referralCode,
-        vipLevel: user.vipLevel,
-        vipPoints: user.vipPoints,
-        fullName: user.fullName,
-        createdAt: user.createdAt
+        ...user,
+        email: user.email || email
       },
       notifications
     });
@@ -325,6 +353,7 @@ router.post('/firebase-sync', async (req, res) => {
     const email = decoded.email || '';
 
     const db = await ensureDbLoaded('/api/auth/firebase-sync');
+    await refreshUserInCache(uid);
     let user = db.users.find(u => u.id === uid || u.email.toLowerCase() === email.toLowerCase());
 
     if (user) {
@@ -357,7 +386,9 @@ router.post('/firebase-sync', async (req, res) => {
         }
       }
 
-      const startBalance = referredBy ? 700 : 500;
+      const signupBonus = db.settings.signupBonusAmount !== undefined ? db.settings.signupBonusAmount : 500;
+      const referralBonus = db.settings.referralBonusAmount !== undefined ? db.settings.referralBonusAmount : 200;
+      const startBalance = referredBy ? signupBonus + referralBonus : signupBonus;
       const userReferral = 'BET-' + finalUsername.substring(0, 4).toUpperCase() + Math.floor(100 + Math.random() * 900);
       const role: 'primary_admin' | 'user' = (email.toLowerCase() === 'admin@betepro.com' || email.toLowerCase() === 'aburayhan10x@gmail.com') ? 'primary_admin' : 'user';
 
@@ -393,13 +424,13 @@ router.post('/firebase-sync', async (req, res) => {
       if (referredBy) {
         const referrer = db.users.find(u => u.id === referredBy);
         if (referrer) {
-          referrer.balance += 200;
+          referrer.balance += referralBonus;
           db.transactions.push({
             id: 'tx_' + Math.random().toString(36).substr(2, 9),
             userId: referrer.id,
             username: referrer.username,
             type: 'referral_bonus' as const,
-            amount: 200,
+            amount: referralBonus,
             status: 'success' as const,
             description: `Referral bonus for inviting ${finalUsername}`,
             createdAt: new Date().toISOString()
@@ -408,7 +439,7 @@ router.post('/firebase-sync', async (req, res) => {
             id: 'notif_' + Math.random().toString(36).substr(2, 9),
             userId: referrer.id,
             title: '👥 Referral Bonus Credited!',
-            message: `Your friend ${finalUsername} registered using your link. ৳200 referral bonus was added to your wallet!`,
+            message: `Your friend ${finalUsername} registered using your link. ৳${referralBonus} referral bonus was added to your wallet!`,
             read: false,
             createdAt: new Date().toISOString()
           });
@@ -426,19 +457,8 @@ router.post('/firebase-sync', async (req, res) => {
     return res.json({
       token: idToken,
       user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
-        balance: user.balance,
-        referralCode: user.referralCode,
-        referredBy: user.referredBy,
-        vipLevel: user.vipLevel,
-        vipPoints: user.vipPoints,
-        avatarUrl: user.avatarUrl,
-        fullName: user.fullName,
-        createdAt: user.createdAt
+        ...user,
+        email: user.email || email
       }
     });
   } catch (err: any) {
@@ -483,7 +503,24 @@ router.post('/daily-signin', authenticateToken, async (req: any, res) => {
     }
 
     const dbUser = db.users[userIndex];
-    const rewardAmount = 10.0;
+    
+    // Check daily sign-in limits from system settings
+    const limit = db.settings.dailyBonusCountLimit !== undefined ? db.settings.dailyBonusCountLimit : 1;
+    const rewardAmount = db.settings.dailyBonusAmount !== undefined ? db.settings.dailyBonusAmount : 10.0;
+
+    const todayString = new Date().toDateString();
+    const todayClaimsCount = db.transactions.filter(tx => 
+      tx.userId === dbUser.id && 
+      tx.accountNumber === 'Daily Check-In' && 
+      new Date(tx.createdAt).toDateString() === todayString
+    ).length;
+
+    if (todayClaimsCount >= limit) {
+      return res.status(400).json({ 
+        error: `You have already claimed your free bonus for today. Daily Limit: ${limit} time(s).` 
+      });
+    }
+
     dbUser.balance += rewardAmount;
 
     const txId = 'TXN_DS_' + Math.random().toString(36).substr(2, 9).toUpperCase();
@@ -556,6 +593,76 @@ router.put('/profile', authenticateToken, async (req: any, res) => {
     return res.json({ message: 'Profile updated successfully', user: db.users[userIndex] });
   } catch (err: any) {
     return res.status(500).json({ error: 'Failed to update profile.' });
+  }
+});
+
+/**
+ * Bind bKash, Nagad, Rocket wallets to profile (uniqueness-constrained, once bound cannot be modified).
+ */
+router.put('/bind-wallet', authenticateToken, async (req: any, res) => {
+  try {
+    const { bkash, nagad, rocket } = req.body;
+    const db = await ensureDbLoaded('/api/auth/profile');
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const userIndex = db.users.findIndex(u => u.id === user.id);
+    if (userIndex === -1) {
+      return res.status(404).json({ error: 'User profile not found.' });
+    }
+
+    const dbUser = db.users[userIndex];
+
+    // Check bKash
+    if (bkash) {
+      if (dbUser.bkashNumber && dbUser.bkashNumber !== bkash) {
+        return res.status(400).json({ error: 'Your bKash number is locked and cannot be changed.' });
+      }
+      if (!dbUser.bkashNumber) {
+        // Validate uniqueness across other accounts
+        const alreadyBound = db.users.find(u => u.bkashNumber === bkash && u.id !== user.id);
+        if (alreadyBound) {
+          return res.status(400).json({ error: 'This bKash number is already bound to another account.' });
+        }
+        dbUser.bkashNumber = bkash;
+      }
+    }
+
+    // Check Nagad
+    if (nagad) {
+      if (dbUser.nagadNumber && dbUser.nagadNumber !== nagad) {
+        return res.status(400).json({ error: 'Your Nagad number is locked and cannot be changed.' });
+      }
+      if (!dbUser.nagadNumber) {
+        // Validate uniqueness across other accounts
+        const alreadyBound = db.users.find(u => u.nagadNumber === nagad && u.id !== user.id);
+        if (alreadyBound) {
+          return res.status(400).json({ error: 'This Nagad number is already bound to another account.' });
+        }
+        dbUser.nagadNumber = nagad;
+      }
+    }
+
+    // Check Rocket
+    if (rocket) {
+      if (dbUser.rocketNumber && dbUser.rocketNumber !== rocket) {
+        return res.status(400).json({ error: 'Your Rocket number is locked and cannot be changed.' });
+      }
+      if (!dbUser.rocketNumber) {
+        // Validate uniqueness across other accounts
+        const alreadyBound = db.users.find(u => u.rocketNumber === rocket && u.id !== user.id);
+        if (alreadyBound) {
+          return res.status(400).json({ error: 'This Rocket number is already bound to another account.' });
+        }
+        dbUser.rocketNumber = rocket;
+      }
+    }
+
+    await writeDb(db);
+    return res.json({ message: 'Wallets bound successfully', user: dbUser });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to bind wallet accounts.' });
   }
 });
 

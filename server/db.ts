@@ -66,6 +66,14 @@ const DEFAULT_SETTINGS: SystemSettings = {
   userWinningPercentage: 70, // Default 70% win rate
   maxWinPercentageOfDeposit: 200, // Default 200% max win based on deposit
   marqueeNotice: '🎁🎁🎁 BETEPRO-তে স্বাগতম! নগদের মাধ্যমে প্রতিটি ডিপোজিটে ১.৫% বোনাস সরাসরি ওয়ালেট ব্যালেন্সে ইনস্ট্যান্ট যুক্ত হচ্ছে! এছাড়া রেফার করুন এবং প্রতি রেফারে ২০০ টাকা ফ্রি বোনাস লুফে নিন! 🎁🎁🎁',
+  dailyBonusCountLimit: 1,
+  dailyBonusAmount: 10,
+  bonusWinRatePercentage: 30,
+  signupBonusAmount: 500,
+  referralBonusAmount: 200,
+  androidApkLink: '',
+  iosAppLink: '',
+  iosAvailable: false,
 };
 
 function getSeedData(): DatabaseSchema {
@@ -658,6 +666,38 @@ export function readLocalDb(): DatabaseSchema {
       parsed.settings.marqueeNotice = '🎁🎁🎁 BETEPRO-তে স্বাগতম! নগদের মাধ্যমে প্রতিটি ডিপোজিটে ১.৫% বোনাস সরাসরি ওয়ালেট ব্যালেন্সে ইনস্ট্যান্ট যুক্ত হচ্ছে! এছাড়া রেফার করুন এবং প্রতি রেফারে ২০০ টাকা ফ্রি বোনাস লুফে নিন! 🎁🎁🎁';
       mutated = true;
     }
+    if (parsed.settings.dailyBonusCountLimit === undefined) {
+      parsed.settings.dailyBonusCountLimit = 1;
+      mutated = true;
+    }
+    if (parsed.settings.dailyBonusAmount === undefined) {
+      parsed.settings.dailyBonusAmount = 10;
+      mutated = true;
+    }
+    if (parsed.settings.bonusWinRatePercentage === undefined) {
+      parsed.settings.bonusWinRatePercentage = 30;
+      mutated = true;
+    }
+    if (parsed.settings.signupBonusAmount === undefined) {
+      parsed.settings.signupBonusAmount = 500;
+      mutated = true;
+    }
+    if (parsed.settings.referralBonusAmount === undefined) {
+      parsed.settings.referralBonusAmount = 200;
+      mutated = true;
+    }
+    if (parsed.settings.androidApkLink === undefined) {
+      parsed.settings.androidApkLink = '';
+      mutated = true;
+    }
+    if (parsed.settings.iosAppLink === undefined) {
+      parsed.settings.iosAppLink = '';
+      mutated = true;
+    }
+    if (parsed.settings.iosAvailable === undefined) {
+      parsed.settings.iosAvailable = false;
+      mutated = true;
+    }
     parsed.users?.forEach(u => {
       const emailLower = u.email?.toLowerCase();
       if (u.username === 'admin' || emailLower === 'admin@betepro.com' || emailLower === 'aburayhan10x@gmail.com') {
@@ -922,6 +962,38 @@ export async function ensureDbLoaded(reqPath?: string): Promise<DatabaseSchema> 
   }
 
   return cachedDb;
+}
+
+export async function refreshUserInCache(uid: string): Promise<User | null> {
+  const firestore = getFirestoreDb();
+  if (!firestore) return null;
+  try {
+    const userDoc = await getDoc(doc(firestore, 'users', uid));
+    if (userDoc.exists()) {
+      const fsUser = userDoc.data() as any;
+      if (!cachedDb) {
+        cachedDb = readLocalDb();
+      }
+      
+      const emailLower = fsUser.email?.toLowerCase();
+      if (fsUser.username === 'admin' || emailLower === 'admin@betepro.com' || emailLower === 'aburayhan10x@gmail.com') {
+        fsUser.role = 'primary_admin';
+      }
+
+      const index = cachedDb.users.findIndex(u => u.id === uid);
+      const updatedUser = { ...cachedDb.users[index], ...fsUser, id: uid };
+      if (index !== -1) {
+        cachedDb.users[index] = updatedUser;
+      } else {
+        cachedDb.users.push(updatedUser);
+      }
+      writeLocalDb(cachedDb);
+      return updatedUser;
+    }
+  } catch (err) {
+    console.error(`[BETEPRO] Error refreshing user ${uid} from Firestore:`, err);
+  }
+  return null;
 }
 
 export function readDb(): DatabaseSchema {

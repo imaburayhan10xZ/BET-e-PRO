@@ -66,6 +66,16 @@ export default function Dashboard({ user, lang, onRefreshUser, onNavigate, initi
   const [withdrawSuccess, setWithdrawSuccess] = useState('');
   const [withdrawError, setWithdrawError] = useState('');
 
+  useEffect(() => {
+    if (withdrawChannel === 'bKash') {
+      setWithdrawRecipient(user.bkashNumber || '');
+    } else if (withdrawChannel === 'Nagad') {
+      setWithdrawRecipient(user.nagadNumber || '');
+    } else if (withdrawChannel === 'Rocket') {
+      setWithdrawRecipient(user.rocketNumber || '');
+    }
+  }, [withdrawChannel, user]);
+
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [txLoading, setTxLoading] = useState(false);
 
@@ -102,12 +112,24 @@ export default function Dashboard({ user, lang, onRefreshUser, onNavigate, initi
   const [dailyCheckInMessage, setDailyCheckInMessage] = useState('');
   const [savedAccounts, setSavedAccounts] = useState<{bkash?: string, nagad?: string, rocket?: string}>(() => {
     return {
-      bkash: localStorage.getItem(`bkash_${user.username}`) || '',
-      nagad: localStorage.getItem(`nagad_${user.username}`) || '',
-      rocket: localStorage.getItem(`rocket_${user.username}`) || ''
+      bkash: user.bkashNumber || localStorage.getItem(`bkash_${user.username}`) || '',
+      nagad: user.nagadNumber || localStorage.getItem(`nagad_${user.username}`) || '',
+      rocket: user.rocketNumber || localStorage.getItem(`rocket_${user.username}`) || ''
     };
   });
   const [accountUpdateSuccess, setAccountUpdateSuccess] = useState('');
+  const [cardError, setCardError] = useState('');
+  
+  useEffect(() => {
+    if (user) {
+      setSavedAccounts({
+        bkash: user.bkashNumber || '',
+        nagad: user.nagadNumber || '',
+        rocket: user.rocketNumber || ''
+      });
+    }
+  }, [user]);
+
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Support states
@@ -121,11 +143,18 @@ export default function Dashboard({ user, lang, onRefreshUser, onNavigate, initi
   const [copiedText, setCopiedText] = useState(false);
 
   // Fetch Public settings
+  const [channels, setChannels] = useState<any[]>([]);
+
   useEffect(() => {
     fetch('/api/settings')
       .then(r => r.json())
       .then(data => setSettings(data))
       .catch(e => console.error('Error fetching settings:', e));
+
+    fetch('/api/support-channels')
+      .then(r => r.json())
+      .then(data => setChannels(data))
+      .catch(e => console.error('Error fetching support channels:', e));
   }, []);
 
   // Sync profile values if user updates elsewhere
@@ -600,53 +629,84 @@ export default function Dashboard({ user, lang, onRefreshUser, onNavigate, initi
                     )}
                   </div>
 
-                  <form onSubmit={handleWithdrawSubmit} className="space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      
-                      {/* Recipient Number */}
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase">{t.recipientNumber}</label>
-                        <input
-                          type="text"
-                          value={withdrawRecipient}
-                          onChange={(e) => setWithdrawRecipient(e.target.value)}
-                          placeholder="e.g. 017XXXXXXXX"
-                          className="w-full rounded-xl bg-white border border-slate-200 p-3 text-xs text-slate-800 focus:border-[#1FA66A] focus:outline-none"
-                        />
-                      </div>
+                   {(() => {
+                     const currentBoundNumber = withdrawChannel === 'bKash' ? user.bkashNumber : withdrawChannel === 'Nagad' ? user.nagadNumber : user.rocketNumber;
+                     
+                     return (
+                       <form onSubmit={handleWithdrawSubmit} className="space-y-4">
+                         {!currentBoundNumber ? (
+                           <div className="p-4 bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl text-xs space-y-2">
+                             <p className="font-semibold flex items-center space-x-1.5">
+                               <span>⚠️ wallet number not bound!</span>
+                             </p>
+                             <p className="text-[11px] leading-relaxed text-amber-700">
+                               Before you can make a withdrawal, you must securely bind your personal {withdrawChannel} number. Once bound, it is locked permanently to protect your funds.
+                             </p>
+                             <button
+                               type="button"
+                               onClick={() => setShowCards(true)}
+                               className="mt-1 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] uppercase tracking-wider transition"
+                             >
+                               Bind Card Now ➔
+                             </button>
+                           </div>
+                         ) : (
+                           <div className="p-3 bg-slate-100 border border-slate-200 text-slate-700 rounded-2xl text-xs flex items-center justify-between">
+                             <span>🔒 Bound Account Number: <strong>{currentBoundNumber}</strong></span>
+                             <span className="text-[9px] font-bold bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full uppercase">Locked</span>
+                           </div>
+                         )}
 
-                      {/* Amount */}
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase">Amount (৳ BDT)</label>
-                        <input
-                          type="number"
-                          value={withdrawAmount}
-                          onChange={(e) => setWithdrawAmount(e.target.value)}
-                          placeholder="Amount in BDT"
-                          className="w-full rounded-xl bg-white border border-slate-200 p-3 text-xs text-slate-800 focus:border-[#1FA66A] focus:outline-none"
-                        />
-                      </div>
+                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                           
+                           {/* Recipient Number */}
+                           <div className="space-y-1">
+                             <label className="text-[10px] font-bold text-slate-500 uppercase">{t.recipientNumber}</label>
+                             <input
+                               type="text"
+                               value={withdrawRecipient}
+                               disabled={true}
+                               placeholder="Not Bound"
+                               className="w-full rounded-xl bg-slate-100 border border-slate-200 p-3 text-xs text-slate-500 cursor-not-allowed font-semibold focus:outline-none"
+                             />
+                           </div>
 
-                    </div>
+                           {/* Amount */}
+                           <div className="space-y-1">
+                             <label className="text-[10px] font-bold text-slate-500 uppercase">Amount (৳ BDT)</label>
+                             <input
+                               type="number"
+                               value={withdrawAmount}
+                               onChange={(e) => setWithdrawAmount(e.target.value)}
+                               disabled={!currentBoundNumber}
+                               placeholder="Amount in BDT"
+                               className="w-full rounded-xl bg-white border border-slate-200 p-3 text-xs text-slate-800 focus:border-[#1FA66A] focus:outline-none disabled:bg-slate-50 disabled:cursor-not-allowed"
+                             />
+                           </div>
 
-                    {withdrawSuccess && (
-                      <div className="p-3 bg-green-500/10 border border-green-500/20 text-green-600 rounded-xl text-xs font-semibold">
-                        {withdrawSuccess}
-                      </div>
-                    )}
-                    {withdrawError && (
-                      <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-600 rounded-xl text-xs font-semibold">
-                        {withdrawError}
-                      </div>
-                    )}
+                         </div>
 
-                    <button
-                      type="submit"
-                      className="w-full rounded-xl bg-gradient-to-r from-[#1FA66A] to-[#0D6B45] py-3 text-xs font-black text-white hover:brightness-110 shadow-lg shadow-[#1FA66A]/20 tracking-widest uppercase transition"
-                    >
-                      {t.submitWithdraw}
-                    </button>
-                  </form>
+                         {withdrawSuccess && (
+                           <div className="p-3 bg-green-500/10 border border-green-500/20 text-green-600 rounded-xl text-xs font-semibold">
+                             {withdrawSuccess}
+                           </div>
+                         )}
+                         {withdrawError && (
+                           <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-600 rounded-xl text-xs font-semibold">
+                             {withdrawError}
+                           </div>
+                         )}
+
+                         <button
+                           type="submit"
+                           disabled={!currentBoundNumber}
+                           className="w-full rounded-xl bg-gradient-to-r from-[#1FA66A] to-[#0D6B45] py-3 text-xs font-black text-white hover:brightness-110 shadow-lg shadow-[#1FA66A]/20 tracking-widest uppercase transition disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+                         >
+                           {t.submitWithdraw}
+                         </button>
+                       </form>
+                     );
+                   })()}
                 </div>
               )}
 
@@ -1734,18 +1794,41 @@ export default function Dashboard({ user, lang, onRefreshUser, onNavigate, initi
                     </p>
 
                     <div className="space-y-2.5">
-                      <button 
-                        onClick={() => alert('BETEPRO Android APK download started successfully!')}
-                        className="w-full rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-black text-xs py-3 flex items-center justify-center space-x-2 shadow transition"
-                      >
-                        <span>Download Android APK</span>
-                      </button>
-                      <button 
-                        onClick={() => alert('Add to Home Screen guidelines triggered. Open browser menu and select "Add to Home Screen"')}
-                        className="w-full rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 font-black text-xs py-3 flex items-center justify-center space-x-2 transition"
-                      >
-                        <span>iOS WebApp Setup</span>
-                      </button>
+                      {settings?.androidApkLink ? (
+                        <a 
+                          href={settings.androidApkLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-black text-xs py-3 flex items-center justify-center space-x-2 shadow transition text-center"
+                        >
+                          <span>Download Android APK</span>
+                        </a>
+                      ) : (
+                        <button 
+                          disabled
+                          className="w-full rounded-xl bg-slate-100 text-slate-400 cursor-not-allowed font-black text-xs py-3 flex items-center justify-center space-x-2 transition text-center border border-slate-200/50"
+                        >
+                          <span>Android APK (Coming Soon)</span>
+                        </button>
+                      )}
+
+                      {settings?.iosAvailable ? (
+                        <a 
+                          href={settings.iosAppLink || '#'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 font-black text-xs py-3 flex items-center justify-center space-x-2 transition text-center"
+                        >
+                          <span>iOS WebApp Setup</span>
+                        </a>
+                      ) : (
+                        <button 
+                          disabled
+                          className="w-full rounded-xl bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed font-black text-xs py-3 flex items-center justify-center space-x-2 transition text-center"
+                        >
+                          <span>iOS App Temporarily Unavailable</span>
+                        </button>
+                      )}
                     </div>
                   </motion.div>
                 </div>
@@ -1825,49 +1908,104 @@ export default function Dashboard({ user, lang, onRefreshUser, onNavigate, initi
                       </button>
                     </div>
 
-                    <form onSubmit={(e) => {
+                    <form onSubmit={async (e) => {
                       e.preventDefault();
-                      localStorage.setItem(`bkash_${user.username}`, savedAccounts.bkash || '');
-                      localStorage.setItem(`nagad_${user.username}`, savedAccounts.nagad || '');
-                      localStorage.setItem(`rocket_${user.username}`, savedAccounts.rocket || '');
-                      setAccountUpdateSuccess('Cards and gateway accounts updated successfully!');
-                      setTimeout(() => setAccountUpdateSuccess(''), 3000);
+                      setAccountUpdateSuccess('');
+                      setCardError('');
+                      try {
+                        const token = localStorage.getItem('token');
+                        const res = await fetch('/api/auth/bind-wallet', {
+                          method: 'PUT',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                          },
+                          body: JSON.stringify({
+                            bkash: savedAccounts.bkash,
+                            nagad: savedAccounts.nagad,
+                            rocket: savedAccounts.rocket
+                          })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                          setAccountUpdateSuccess('Wallets bound and locked successfully!');
+                          // Backup in local storage
+                          if (savedAccounts.bkash) localStorage.setItem(`bkash_${user.username}`, savedAccounts.bkash);
+                          if (savedAccounts.nagad) localStorage.setItem(`nagad_${user.username}`, savedAccounts.nagad);
+                          if (savedAccounts.rocket) localStorage.setItem(`rocket_${user.username}`, savedAccounts.rocket);
+                          onRefreshUser(); // Reload user state
+                        } else {
+                          setCardError(data.error || 'Failed to bind wallets.');
+                        }
+                      } catch (err) {
+                        setCardError('A network error occurred. Please try again.');
+                      }
                     }} className="space-y-4">
                       <p className="text-xs text-slate-500 leading-relaxed">
-                        Bind your personal mobile financial wallets for instant payouts and withdraw verifications.
+                        Bind your personal mobile financial wallets for instant payouts. <strong>Once bound, numbers are locked permanently for security.</strong>
                       </p>
 
                       <div className="space-y-3">
                         <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase">bKash Account Number</label>
+                          <div className="flex justify-between items-center">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase">bKash Account Number</label>
+                            {user.bkashNumber && (
+                              <span className="text-[9px] font-bold text-red-500 flex items-center space-x-1 uppercase">
+                                <span>Locked 🔒</span>
+                              </span>
+                            )}
+                          </div>
                           <input
                             type="text"
                             value={savedAccounts.bkash}
                             onChange={(e) => setSavedAccounts({ ...savedAccounts, bkash: e.target.value })}
-                            className="w-full rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs text-slate-800 focus:border-[#1FA66A] focus:outline-none"
-                            placeholder="e.g. 01712345678"
+                            disabled={!!user.bkashNumber}
+                            className={`w-full rounded-xl p-3 text-xs text-slate-800 focus:border-[#1FA66A] focus:outline-none border ${
+                              user.bkashNumber ? 'bg-slate-100 border-slate-200 cursor-not-allowed font-semibold' : 'bg-slate-50 border-slate-200'
+                            }`}
+                            placeholder={user.bkashNumber ? user.bkashNumber : "e.g. 01712345678"}
                           />
                         </div>
 
                         <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase">Nagad Account Number</label>
+                          <div className="flex justify-between items-center">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase">Nagad Account Number</label>
+                            {user.nagadNumber && (
+                              <span className="text-[9px] font-bold text-red-500 flex items-center space-x-1 uppercase">
+                                <span>Locked 🔒</span>
+                              </span>
+                            )}
+                          </div>
                           <input
                             type="text"
                             value={savedAccounts.nagad}
                             onChange={(e) => setSavedAccounts({ ...savedAccounts, nagad: e.target.value })}
-                            className="w-full rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs text-slate-800 focus:border-[#1FA66A] focus:outline-none"
-                            placeholder="e.g. 01712345678"
+                            disabled={!!user.nagadNumber}
+                            className={`w-full rounded-xl p-3 text-xs text-slate-800 focus:border-[#1FA66A] focus:outline-none border ${
+                              user.nagadNumber ? 'bg-slate-100 border-slate-200 cursor-not-allowed font-semibold' : 'bg-slate-50 border-slate-200'
+                            }`}
+                            placeholder={user.nagadNumber ? user.nagadNumber : "e.g. 01712345678"}
                           />
                         </div>
 
                         <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase">Rocket Account Number</label>
+                          <div className="flex justify-between items-center">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase">Rocket Account Number</label>
+                            {user.rocketNumber && (
+                              <span className="text-[9px] font-bold text-red-500 flex items-center space-x-1 uppercase">
+                                <span>Locked 🔒</span>
+                              </span>
+                            )}
+                          </div>
                           <input
                             type="text"
                             value={savedAccounts.rocket}
                             onChange={(e) => setSavedAccounts({ ...savedAccounts, rocket: e.target.value })}
-                            className="w-full rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs text-slate-800 focus:border-[#1FA66A] focus:outline-none"
-                            placeholder="e.g. 01712345678"
+                            disabled={!!user.rocketNumber}
+                            className={`w-full rounded-xl p-3 text-xs text-slate-800 focus:border-[#1FA66A] focus:outline-none border ${
+                              user.rocketNumber ? 'bg-slate-100 border-slate-200 cursor-not-allowed font-semibold' : 'bg-slate-50 border-slate-200'
+                            }`}
+                            placeholder={user.rocketNumber ? user.rocketNumber : "e.g. 01712345678"}
                           />
                         </div>
                       </div>
@@ -1878,20 +2016,28 @@ export default function Dashboard({ user, lang, onRefreshUser, onNavigate, initi
                         </div>
                       )}
 
+                      {cardError && (
+                        <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-600 rounded-xl text-xs font-semibold">
+                          {cardError}
+                        </div>
+                      )}
+
                       <div className="flex space-x-3 pt-2">
                         <button
                           type="button"
-                          onClick={() => { setShowCards(false); setAccountUpdateSuccess(''); }}
+                          onClick={() => { setShowCards(false); setAccountUpdateSuccess(''); setCardError(''); }}
                           className="flex-1 rounded-xl bg-slate-100 hover:bg-slate-200 py-2.5 text-xs font-bold text-slate-700 uppercase tracking-wider transition"
                         >
                           Close
                         </button>
-                        <button
-                          type="submit"
-                          className="flex-1 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 py-2.5 text-xs font-black text-white hover:brightness-110 tracking-wider uppercase transition shadow-md shadow-amber-500/20"
-                        >
-                          Bind Wallets
-                        </button>
+                        {(!user.bkashNumber || !user.nagadNumber || !user.rocketNumber) && (
+                          <button
+                            type="submit"
+                            className="flex-1 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 py-2.5 text-xs font-black text-white hover:brightness-110 tracking-wider uppercase transition shadow-md shadow-amber-500/20"
+                          >
+                            Bind Wallets
+                          </button>
+                        )}
                       </div>
                     </form>
                   </motion.div>
@@ -2064,6 +2210,35 @@ export default function Dashboard({ user, lang, onRefreshUser, onNavigate, initi
                 <h3 className="text-sm font-black uppercase tracking-wider">Customer Support</h3>
                 <div className="w-8"></div> {/* Spacer for balancing */}
               </div>
+
+              {/* INSTANT CONTACT CHANNELS */}
+              {channels.length > 0 && (
+                <div className="bg-slate-50 border border-slate-150 p-4 rounded-3xl space-y-3">
+                  <div className="space-y-0.5">
+                    <span className="text-[10px] font-black uppercase text-[#1FA66A] tracking-wider block">⚡ Live Support Channels</span>
+                    <span className="text-[10px] text-slate-500 font-medium block">
+                      Connect instantly with our verified staff members via external official messenger groups.
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {channels.map((channel) => (
+                      <a
+                        key={channel.id}
+                        href={channel.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-800 font-bold text-xs flex items-center space-x-1.5 hover:bg-slate-50 hover:border-slate-300 transition shadow-sm"
+                      >
+                        <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                        <span className="font-extrabold text-[10px] text-slate-500 uppercase font-mono">
+                          {channel.icon === 'Send' ? 'Telegram' : channel.icon === 'Phone' ? 'WhatsApp' : 'Chat'}
+                        </span>
+                        <span className="text-slate-800 font-extrabold">{channel.name}</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {/* Form */}

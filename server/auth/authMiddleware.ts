@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { ensureDbLoaded, readDb } from '../db.js';
+import { ensureDbLoaded, readDb, refreshUserInCache } from '../db.js';
 import { verifyFirebaseIdToken } from './verifyToken.js';
 import { User } from '../../src/types';
 
@@ -28,6 +28,9 @@ export async function authenticateToken(req: AuthenticatedRequest, res: Response
 
     // 2. Ensure database is loaded (this is optimized & cached)
     const db = await ensureDbLoaded(req.path);
+    
+    // Refresh user from Firestore directly to handle real-time role/balance updates
+    await refreshUserInCache(decoded.uid);
     const user = db.users.find(u => u.id === decoded.uid);
 
     if (!user) {
@@ -40,20 +43,8 @@ export async function authenticateToken(req: AuthenticatedRequest, res: Response
 
     // 3. Attach full profile to req.user for subsequent middlewares and handlers
     req.user = {
-      id: user.id,
-      username: user.username,
-      email: user.email || decoded.email,
-      phone: user.phone,
-      role: user.role,
-      balance: user.balance,
-      referralCode: user.referralCode,
-      referredBy: user.referredBy,
-      vipLevel: user.vipLevel,
-      vipPoints: user.vipPoints,
-      isBlocked: user.isBlocked,
-      avatarUrl: user.avatarUrl,
-      fullName: user.fullName,
-      createdAt: user.createdAt
+      ...user,
+      email: user.email || decoded.email
     };
 
     next();

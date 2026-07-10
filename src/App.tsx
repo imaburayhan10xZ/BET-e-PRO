@@ -7,9 +7,10 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Trophy, Flame, Bell, Globe, Sparkles, Star, Users, Phone, ShieldCheck, 
-  HelpCircle, ChevronDown, CheckCircle2, AlertCircle, Play, ArrowRight, Wallet, Info, Mail, X, Loader2
+  HelpCircle, ChevronDown, CheckCircle2, AlertCircle, Play, ArrowRight, Wallet, Info, Mail, X, Loader2,
+  Send, MessageSquare
 } from 'lucide-react';
-import { User, Notification, Match, Promotion } from './types';
+import { User, Notification, Match, Promotion, SupportChannel } from './types';
 import { translations, Language } from './utils/lang';
 import { auth as firebaseAuth } from './lib/firebase';
 import { 
@@ -51,6 +52,59 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
+
+  // Custom Animated Toast Notification State
+  const [toasts, setToasts] = useState<{ id: string; message: string; type: 'success' | 'info' | 'error' | 'warning' }[]>([]);
+
+  const addToast = (message: string, type: 'success' | 'info' | 'error' | 'warning' = 'info') => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 3000);
+  };
+
+  // Intercept window.alert globally to route to custom toasts
+  useEffect(() => {
+    window.alert = (message: any) => {
+      const msgStr = String(message);
+      let type: 'success' | 'info' | 'error' | 'warning' = 'info';
+      
+      const msgLower = msgStr.toLowerCase();
+      if (
+        msgLower.includes('successful') || 
+        msgLower.includes('welcome') || 
+        msgLower.includes('added') || 
+        msgLower.includes('claimed') || 
+        msgLower.includes('success') || 
+        msgLower.includes('active')
+      ) {
+        type = 'success';
+      } else if (
+        msgLower.includes('insufficient') || 
+        msgLower.includes('failed') || 
+        msgLower.includes('error') || 
+        msgLower.includes('rejected') || 
+        msgLower.includes('invalid') || 
+        msgLower.includes('minimum') || 
+        msgLower.includes('denied') || 
+        msgLower.includes('not have') ||
+        msgLower.includes('পর্যাপ্ত') ||
+        msgLower.includes('অপর্যাপ্ত')
+      ) {
+        type = 'error';
+      } else if (
+        msgLower.includes('wait') || 
+        msgLower.includes('warning') || 
+        msgLower.includes('caution') || 
+        msgLower.includes('complete')
+      ) {
+        type = 'warning';
+      }
+      
+      addToast(msgStr, type);
+    };
+  }, []);
   
   // Auth state
   const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot' | null>(null);
@@ -69,6 +123,9 @@ export default function App() {
   const [activeSlide, setActiveSlide] = useState(0);
   const [banners, setBanners] = useState<any[]>([]);
   const [marqueeNotice, setMarqueeNotice] = useState('🎁🎁🎁 BETEPRO-তে স্বাগতম! নগদের মাধ্যমে প্রতিটি ডিপোজিটে ১.৫% বোনাস সরাসরি ওয়ালেট ব্যালেন্সে ইনস্ট্যান্ট যুক্ত হচ্ছে! এছাড়া রেফার করুন এবং প্রতি রেফারে ২০০ টাকা ফ্রি বোনাস লুফে নিন! 🎁🎁🎁');
+  
+  // Support channels state
+  const [supportChannels, setSupportChannels] = useState<SupportChannel[]>([]);
 
   // Live winners tick
   const [winnerList, setWinnerList] = useState(WINNERS_FEED);
@@ -122,6 +179,12 @@ export default function App() {
         const bannersData = await resBanners.json();
         setBanners(bannersData);
       }
+
+      const resChannels = await fetch('/api/support-channels');
+      if (resChannels.ok) {
+        const channelsData = await resChannels.json();
+        setSupportChannels(channelsData);
+      }
     } catch (e) {
       console.error(e);
     }
@@ -158,12 +221,50 @@ export default function App() {
     }
   };
 
+  // Enforce absolute role-based lock: Admin/mod/primary_admin can ONLY access /cockpit
+  useEffect(() => {
+    if (user && (user.role === 'admin' || user.role === 'mod' || user.role === 'primary_admin')) {
+      if (currentTab !== 'cockpit') {
+        setCurrentTab('cockpit');
+      }
+      if (window.location.pathname !== '/cockpit') {
+        window.history.pushState({}, '', '/cockpit');
+      }
+    }
+  }, [user, currentTab]);
+
+  // Background real-time profile sync for administrative staff (updates roles, permissions, balance immediately)
+  useEffect(() => {
+    if (!user) return;
+    
+    // Always refresh once on tab switches/changes
+    fetchUserProfile();
+
+    const isStaff = user.role === 'admin' || user.role === 'mod' || user.role === 'primary_admin';
+    if (!isStaff) return;
+
+    const interval = setInterval(() => {
+      fetchUserProfile();
+    }, 4000); // Polling every 4 seconds
+
+    return () => clearInterval(interval);
+  }, [user?.id, user?.role, currentTab]);
+
   // Support manual URL change, page refreshes and browser history events for /cockpit
   useEffect(() => {
     const handleLocationChange = () => {
+      // If we are logged in as admin/mod, we must stay in cockpit
+      if (user && (user.role === 'admin' || user.role === 'mod' || user.role === 'primary_admin')) {
+        setCurrentTab('cockpit');
+        if (window.location.pathname !== '/cockpit') {
+          window.history.pushState({}, '', '/cockpit');
+        }
+        return;
+      }
+
       if (window.location.pathname === '/cockpit') {
         setCurrentTab('cockpit');
-      } else if (currentTab === 'cockpit') {
+      } else {
         setCurrentTab('home');
       }
     };
@@ -208,9 +309,23 @@ export default function App() {
       window.removeEventListener('popstate', handleLocationChange);
       unsubscribe();
     };
-  }, []);
+  }, [user]); // Add user as dependency so popstate handler can inspect correct role
 
   const navigateTo = (tab: string) => {
+    // If user is admin/mod, they are locked to cockpit
+    if (user && (user.role === 'admin' || user.role === 'mod' || user.role === 'primary_admin')) {
+      if (tab !== 'cockpit') {
+        console.warn('[SECURITY] Admins cannot access user panel.');
+        return;
+      }
+    }
+
+    // If current tab is cockpit, prevent switching to any user tab
+    if (currentTab === 'cockpit' && tab !== 'cockpit') {
+      console.warn('[SECURITY] Cockpit tab is locked.');
+      return;
+    }
+
     if (tab === 'cockpit') {
       window.history.pushState({}, '', '/cockpit');
     } else {
@@ -445,18 +560,108 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#03211a] text-slate-100 flex flex-col justify-between selection:bg-yellow-400 selection:text-black">
       
+      {/* CUSTOM TOAST NOTIFICATIONS */}
+      <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[9999] flex flex-col gap-3 pointer-events-none max-w-md w-full px-4">
+        <AnimatePresence>
+          {toasts.map((toast) => {
+            let icon = <Info className="h-5 w-5 text-indigo-400" />;
+            let bgColor = "bg-slate-900/95 border-slate-800/80";
+            let barColor = "bg-indigo-500";
+            let textColor = "text-white";
+
+            if (toast.type === 'success') {
+              icon = <CheckCircle2 className="h-5 w-5 text-emerald-400" />;
+              bgColor = "bg-slate-900/95 border-emerald-500/30";
+              barColor = "bg-emerald-500";
+            } else if (toast.type === 'error') {
+              icon = <AlertCircle className="h-5 w-5 text-rose-400" />;
+              bgColor = "bg-slate-900/95 border-rose-500/30";
+              barColor = "bg-rose-500";
+            } else if (toast.type === 'warning') {
+              icon = <AlertCircle className="h-5 w-5 text-amber-400" />;
+              bgColor = "bg-slate-900/95 border-amber-500/30";
+              barColor = "bg-amber-500";
+            }
+
+            return (
+              <motion.div
+                key={toast.id}
+                initial={{ opacity: 0, y: -25, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -25, scale: 0.95, transition: { duration: 0.15 } }}
+                className={`pointer-events-auto flex items-start gap-3 p-4 rounded-xl border shadow-2xl ${bgColor} backdrop-blur-md overflow-hidden relative`}
+                style={{ width: '100%' }}
+              >
+                {/* Accent border bottom progress bar simulation */}
+                <motion.div 
+                  initial={{ width: "100%" }}
+                  animate={{ width: "0%" }}
+                  transition={{ duration: 3, ease: "linear" }}
+                  className={`absolute bottom-0 left-0 h-1 ${barColor}`}
+                />
+                <div className="flex-shrink-0 mt-0.5">
+                  {icon}
+                </div>
+                <div className="flex-grow">
+                  <p className={`text-xs font-semibold tracking-wide ${textColor}`}>
+                    {toast.message}
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
+                  className="flex-shrink-0 text-slate-400 hover:text-white transition p-0.5 rounded cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
+      </div>
+
       {/* NAVIGATION HEADER BAR */}
-      <Navigation
-        user={user}
-        activeTab={currentTab}
-        onNavigate={(tab) => navigateTo(tab)}
-        lang={lang}
-        setLang={(l) => setLang(l)}
-        onLogout={handleLogout}
-        onOpenAuth={(mode) => { setAuthMode(mode); setAuthError(''); setAuthSuccess(''); }}
-        notifications={notifications}
-        onMarkNotificationsRead={handleMarkNotificationsRead}
-      />
+      {currentTab !== 'cockpit' ? (
+        <Navigation
+          user={user}
+          activeTab={currentTab}
+          onNavigate={(tab) => navigateTo(tab)}
+          lang={lang}
+          setLang={(l) => setLang(l)}
+          onLogout={handleLogout}
+          onOpenAuth={(mode) => { setAuthMode(mode); setAuthError(''); setAuthSuccess(''); }}
+          notifications={notifications}
+          onMarkNotificationsRead={handleMarkNotificationsRead}
+        />
+      ) : (
+        <header className="w-full border-b border-slate-200/20 bg-[#021813] sticky top-0 z-50">
+          <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
+            <div className="flex items-center space-x-2">
+              <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-gradient-to-br from-yellow-500 via-amber-500 to-emerald-600 text-black font-black text-xl shadow-lg shadow-emerald-500/10">
+                B
+              </div>
+              <div>
+                <span className="shiny-logo-text text-lg sm:text-2xl block tracking-wide select-none">BETEPRO.COM</span>
+                <span className="text-[9px] font-black tracking-widest text-[#FF9F00] uppercase block leading-none font-mono">Cockpit Admin Control</span>
+              </div>
+            </div>
+            
+            {user && (user.role === 'admin' || user.role === 'mod' || user.role === 'primary_admin') && (
+              <div className="flex items-center space-x-4">
+                <div className="hidden sm:flex flex-col items-end text-right font-mono text-[10px] text-[#8daaa3]">
+                  <span className="font-bold text-white uppercase tracking-wider">{user.username}</span>
+                  <span className="text-[#FF9F00] font-black uppercase tracking-widest">{user.role}</span>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="rounded-xl bg-red-950/40 border border-red-900/60 px-4 py-2 text-xs font-black text-red-400 hover:bg-red-900/40 transition active:scale-95"
+                >
+                  Log Out
+                </button>
+              </div>
+            )}
+          </div>
+        </header>
+      )}
 
       {/* CORE PAGES SWITCH ROUTER CONTENT */}
       <main className="flex-1 max-w-7xl w-full mx-auto py-6">
@@ -1126,9 +1331,26 @@ export default function App() {
 
             <div className="space-y-3">
               <h4 className="font-extrabold text-white uppercase text-[10px] tracking-wider">Customer Care Support</h4>
-              <div className="space-y-1.5">
-                <div className="flex items-center space-x-2"><Mail className="h-4 w-4 text-yellow-400" /> <span className="text-white">support@betepro.com</span></div>
-                <div className="flex items-center space-x-2"><Phone className="h-4 w-4 text-yellow-400" /> <span className="text-white">+880 171-BETEPRO</span></div>
+              <div className="space-y-2">
+                {supportChannels.map((channel) => (
+                  <a 
+                    key={channel.id}
+                    href={channel.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center space-x-2 text-white hover:text-[#FF9F00] transition"
+                  >
+                    <span className="text-xs bg-[#FF9F00]/20 text-[#FF9F00] p-1 rounded-md font-mono leading-none">
+                      {channel.icon === 'Send' ? 'TG' : channel.icon === 'Phone' ? 'WP' : 'SC'}
+                    </span>
+                    <span className="font-bold text-[11px]">{channel.name}</span>
+                  </a>
+                ))}
+                {supportChannels.length === 0 && (
+                  <span className="text-[#8daaa3] text-[11px] leading-relaxed block">
+                    Undergoing system server updates. Live support is coming online shortly.
+                  </span>
+                )}
               </div>
             </div>
 
@@ -1462,57 +1684,36 @@ export default function App() {
       </AnimatePresence>
 
       {/* FLOATING SUPPORT CONTACTS */}
-      {currentTab === 'home' && (
+      {currentTab !== 'cockpit' && supportChannels.length > 0 && (
         <div className="fixed right-4 bottom-24 z-50 flex flex-col items-center space-y-3">
-          {/* WhatsApp */}
-          <a 
-            href="https://wa.me/880171000000" 
-            target="_blank" 
-            rel="noopener noreferrer" 
-            className="h-11 w-11 flex items-center justify-center rounded-full bg-[#25D366] text-white shadow-lg shadow-[#25D366]/20 hover:scale-110 active:scale-95 transition-all duration-300"
-            title="WhatsApp Support"
-          >
-            <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.713-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.725 1.45 5.515 0 9.961-4.447 9.964-9.964.003-2.672-1.033-5.184-2.918-7.07C16.53 1.684 14.02.643 11.352.643 5.834.643 1.388 5.09 1.385 10.61c-.001 1.64.442 3.238 1.282 4.652l-.997 3.637 3.733-.98c1.433.824 2.914 1.235 4.244 1.235zM17.9 14.86c-.322-.16-1.902-.938-2.2-.1.297-.156-.322-.444-.356-.51-.1-.19-.1-.322-.05-.444.05-.122.322-.444.444-.577.122-.133.16-.22.25-.37.08-.15.04-.282-.02-.37-.056-.09-.5-1.21-.685-1.656-.18-.444-.36-.383-.49-.39l-.422-.01c-.145 0-.383.054-.585.27-.2.22-.767.747-.767 1.82 0 1.07.784 2.112.893 2.26.11.147 1.543 2.355 3.738 3.3.523.225.93.36 1.247.46.525.167 1 .143 1.378.087.42-.06.1.9-.176.84-.27-.056-.464-.322-.61-.63z" />
-            </svg>
-          </a>
+          {supportChannels.map((channel) => {
+            let bgClass = "bg-[#25D366] shadow-[#25D366]/20";
+            let IconComponent = Phone;
 
-          {/* Facebook */}
-          <a 
-            href="https://facebook.com" 
-            target="_blank" 
-            rel="noopener noreferrer" 
-            className="h-11 w-11 flex items-center justify-center rounded-full bg-[#1877F2] text-white shadow-lg shadow-[#1877F2]/20 hover:scale-110 active:scale-95 transition-all duration-300"
-            title="Facebook Community"
-          >
-            <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-            </svg>
-          </a>
+            if (channel.icon === 'Send') {
+              bgClass = "bg-[#0088cc] shadow-[#0088cc]/20";
+              IconComponent = Send;
+            } else if (channel.icon === 'MessageSquare') {
+              bgClass = "bg-gradient-to-tr from-sky-400 to-blue-600 shadow-sky-500/20";
+              IconComponent = MessageSquare;
+            } else if (channel.icon === 'Phone') {
+              bgClass = "bg-[#25D366] shadow-[#25D366]/20";
+              IconComponent = Phone;
+            }
 
-          {/* Telegram */}
-          <a 
-            href="https://t.me" 
-            target="_blank" 
-            rel="noopener noreferrer" 
-            className="h-11 w-11 flex items-center justify-center rounded-full bg-[#0088cc] text-white shadow-lg shadow-[#0088cc]/20 hover:scale-110 active:scale-95 transition-all duration-300"
-            title="Telegram Channel"
-          >
-            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.161l-1.896 8.93c-.143.64-.523.8-.1.543l-2.894-2.133-1.396 1.343c-.154.154-.285.285-.585.285l.206-2.93 5.34-4.823c.232-.206-.05-.32-.36-.115L9.617 11.96l-2.842-.888c-.618-.193-.63-.618.129-.914l11.094-4.28c.513-.186.962.12.764.914z" />
-            </svg>
-          </a>
-
-          {/* Live Support */}
-          <button 
-            onClick={() => alert('💬 Live Customer Service Support is available 24/7! Type your message in our secure portal.')}
-            className="h-11 w-11 flex items-center justify-center rounded-full bg-gradient-to-tr from-sky-400 to-blue-600 text-white shadow-lg shadow-sky-500/20 hover:scale-110 active:scale-95 transition-all duration-300"
-            title="Live Support"
-          >
-            <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-            </svg>
-          </button>
+            return (
+              <a 
+                key={channel.id}
+                href={channel.link} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className={`h-11 w-11 flex items-center justify-center rounded-full text-white shadow-lg hover:scale-110 active:scale-95 transition-all duration-300 ${bgClass}`}
+                title={channel.name}
+              >
+                <IconComponent className="h-5 w-5" />
+              </a>
+            );
+          })}
         </div>
       )}
 

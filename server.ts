@@ -17,6 +17,7 @@ import {
   AuthenticatedRequest 
 } from './server/auth.js';
 import authRouter from './server/auth/routes.js';
+import { getFirebaseConfig } from './server/auth/firebase.js';
 import { 
   User, Match, Prediction, Transaction, 
   Promotion, Notification, LeaderboardEntry, 
@@ -179,6 +180,27 @@ export function createApp() {
     // Find user in DB to deduct balance
     const userIndex = db.users.findIndex(u => u.id === req.user!.id);
     const user = db.users[userIndex];
+
+    // Validate that the recipient number matches the user's bound number for the selected method
+    let expectedBoundNumber = '';
+    const normalizedMethod = paymentMethod.toLowerCase();
+    if (normalizedMethod === 'bkash') {
+      expectedBoundNumber = user.bkashNumber || '';
+    } else if (normalizedMethod === 'nagad') {
+      expectedBoundNumber = user.nagadNumber || '';
+    } else if (normalizedMethod === 'rocket') {
+      expectedBoundNumber = user.rocketNumber || '';
+    }
+
+    if (!expectedBoundNumber) {
+      res.status(400).json({ error: `Please bind your ${paymentMethod} wallet number first in My Card settings.` });
+      return;
+    }
+
+    if (recipientNumber !== expectedBoundNumber) {
+      res.status(400).json({ error: `Withdrawals can only be sent to your bound and locked ${paymentMethod} wallet: ${expectedBoundNumber}` });
+      return;
+    }
 
     if (user.balance < withdrawAmount) {
       res.status(400).json({ error: 'Insufficient wallet balance.' });
@@ -394,7 +416,33 @@ export function createApp() {
     if (!user) return false;
 
     // 1. Check user winning percentage
-    const winRate = settings.userWinningPercentage !== undefined ? settings.userWinningPercentage : 70;
+    let winRate = settings.userWinningPercentage !== undefined ? settings.userWinningPercentage : 70;
+
+    // Check if user is playing with free daily sign-in bonus
+    const totalRealDeposits = db.transactions
+      .filter(tx => tx.userId === userId && tx.type === 'deposit' && tx.status === 'success' && tx.accountNumber !== 'Daily Check-In')
+      .reduce((sum, tx) => sum + tx.amount, 0);
+
+    const hasReceivedBonus = db.transactions.some(tx => tx.userId === userId && tx.accountNumber === 'Daily Check-In');
+
+    if (hasReceivedBonus) {
+      const bonusWinRate = settings.bonusWinRatePercentage !== undefined ? settings.bonusWinRatePercentage : 30;
+      if (totalRealDeposits === 0) {
+        // User has only ever played with free sign-in bonus
+        winRate = bonusWinRate;
+      } else {
+        // Check if they received a daily sign-in bonus in the last 24 hours
+        const receivedBonusRecently = db.transactions.some(tx => 
+          tx.userId === userId && 
+          tx.accountNumber === 'Daily Check-In' && 
+          (Date.now() - new Date(tx.createdAt).getTime()) < 24 * 60 * 60 * 1000
+        );
+        if (receivedBonusRecently && user.balance > totalRealDeposits) {
+          winRate = bonusWinRate;
+        }
+      }
+    }
+
     const roll = Math.random() * 100;
     if (roll > winRate) {
       return false; // Force lose
@@ -2500,7 +2548,9 @@ export function createApp() {
     const { 
       siteName, maintenanceMode, minDeposit, minWithdraw, 
       bKashNumber, nagadNumber, rocketNumber, referralBonus,
-      userWinningPercentage, maxWinPercentageOfDeposit, marqueeNotice
+      userWinningPercentage, maxWinPercentageOfDeposit, marqueeNotice,
+      dailyBonusCountLimit, dailyBonusAmount, bonusWinRatePercentage,
+      signupBonusAmount, referralBonusAmount, androidApkLink, iosAppLink, iosAvailable
     } = req.body;
     const db = readDb();
 
@@ -2515,6 +2565,14 @@ export function createApp() {
     if (userWinningPercentage !== undefined) db.settings.userWinningPercentage = parseFloat(userWinningPercentage);
     if (maxWinPercentageOfDeposit !== undefined) db.settings.maxWinPercentageOfDeposit = parseFloat(maxWinPercentageOfDeposit);
     if (marqueeNotice !== undefined) db.settings.marqueeNotice = marqueeNotice;
+    if (dailyBonusCountLimit !== undefined) db.settings.dailyBonusCountLimit = parseInt(dailyBonusCountLimit);
+    if (dailyBonusAmount !== undefined) db.settings.dailyBonusAmount = parseFloat(dailyBonusAmount);
+    if (bonusWinRatePercentage !== undefined) db.settings.bonusWinRatePercentage = parseFloat(bonusWinRatePercentage);
+    if (signupBonusAmount !== undefined) db.settings.signupBonusAmount = parseFloat(signupBonusAmount);
+    if (referralBonusAmount !== undefined) db.settings.referralBonusAmount = parseFloat(referralBonusAmount);
+    if (androidApkLink !== undefined) db.settings.androidApkLink = androidApkLink;
+    if (iosAppLink !== undefined) db.settings.iosAppLink = iosAppLink;
+    if (iosAvailable !== undefined) db.settings.iosAvailable = !!iosAvailable;
 
     writeDb(db);
     res.json({ message: 'Global platform settings updated successfully!', settings: db.settings });
@@ -2718,7 +2776,7 @@ export function createApp() {
   });
 
   // Create new admin/mod
-  app.post('/api/admin/admins', authenticateToken, requirePrimaryAdmin, (req, res) => {
+  app.post('/api/admin/admins', authenticateToken, requirePrimaryAdmin, async (req, res) => {
     const { username, email, phone, password, role, allowedTabs, fullName } = req.body;
     if (!username || !email || !password || !role) {
       res.status(400).json({ error: 'Username, Email, Password, and Role are required.' });
@@ -2737,31 +2795,57 @@ export function createApp() {
       return;
     }
 
-    const salt = generateSalt();
-    const passwordHash = hashPassword(password, salt);
+    try {
+      // Create user in Firebase Auth using REST API so they can log in with email & password
+      const config = getFirebaseConfig();
+      const fbResponse = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${config.apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim(),
+          password: password,
+          returnSecureToken: true
+        })
+      });
 
-    const newAdmin = {
-      id: 'usr_adm_' + Math.random().toString(36).substr(2, 9),
-      username,
-      email,
-      phone: phone || '',
-      role,
-      balance: 0,
-      referralCode: 'ADM_' + username.toUpperCase(),
-      vipLevel: 0,
-      vipPoints: 0,
-      isBlocked: false,
-      fullName: fullName || `${role.toUpperCase()} Account`,
-      createdAt: new Date().toISOString(),
-      allowedTabs: allowedTabs || [],
-      passwordHash,
-      salt
-    };
+      const fbData = await fbResponse.json();
+      if (!fbResponse.ok) {
+        const errorMsg = fbData.error?.message || 'Firebase user creation failed.';
+        res.status(400).json({ error: `Firebase registration failed: ${errorMsg}` });
+        return;
+      }
 
-    db.users.push(newAdmin);
-    writeDb(db);
+      const firebaseUid = fbData.localId;
 
-    res.status(201).json({ message: `${role === 'admin' ? 'Secondary Admin' : 'Moderator'} added successfully!`, user: newAdmin });
+      const salt = generateSalt();
+      const passwordHash = hashPassword(password, salt);
+
+      const newAdmin = {
+        id: firebaseUid,
+        username,
+        email: email.toLowerCase(),
+        phone: phone || '',
+        role,
+        balance: 0,
+        referralCode: 'ADM_' + username.toUpperCase(),
+        vipLevel: 0,
+        vipPoints: 0,
+        isBlocked: false,
+        fullName: fullName || `${role.toUpperCase()} Account`,
+        createdAt: new Date().toISOString(),
+        allowedTabs: allowedTabs || [],
+        passwordHash,
+        salt
+      };
+
+      db.users.push(newAdmin);
+      writeDb(db);
+
+      res.status(201).json({ message: `${role === 'admin' ? 'Secondary Admin' : 'Moderator'} added successfully!`, user: newAdmin });
+    } catch (err: any) {
+      console.error('Error registering admin to Firebase:', err);
+      res.status(500).json({ error: 'An internal server error occurred while creating admin in Firebase.' });
+    }
   });
 
   // Update secondary admin/mod permissions

@@ -19,6 +19,9 @@ export interface User {
   fullName?: string;
   createdAt: string;
   allowedTabs?: string[]; // for restricted admin/mod access
+  bkashNumber?: string;
+  nagadNumber?: string;
+  rocketNumber?: string;
 }
 
 export type TransactionType = 'deposit' | 'withdraw' | 'bet' | 'win' | 'referral_bonus' | 'vip_bonus';
@@ -33,6 +36,7 @@ export interface Transaction {
   status: TransactionStatus;
   paymentMethod?: string;
   transactionId?: string; // payment reference
+  accountNumber?: string;
   description: string;
   createdAt: string;
 }
@@ -148,6 +152,14 @@ export interface SystemSettings {
   userWinningPercentage: number;
   maxWinPercentageOfDeposit: number;
   marqueeNotice: string;
+  dailyBonusCountLimit?: number;
+  dailyBonusAmount?: number;
+  bonusWinRatePercentage?: number;
+  signupBonusAmount?: number;
+  referralBonusAmount?: number;
+  androidApkLink?: string;
+  iosAppLink?: string;
+  iosAvailable?: boolean;
 }
 
 export interface SupportChannel {

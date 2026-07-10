@@ -219,6 +219,19 @@ export default function AdminPanel({ user, onRefreshUser }: AdminPanelProps) {
     if (activeTab === 'settings') fetchSettings();
   }, [activeTab]);
 
+  // Auto-switch tab if current activeTab is revoked or not accessible in real-time
+  useEffect(() => {
+    if (!hasAccess(activeTab)) {
+      const possible: AdminTab[] = ['analytics', 'users', 'transactions', 'matches', 'promotions', 'tickets', 'support_channels', 'sliders_notices', 'settings'];
+      for (const tab of possible) {
+        if (hasAccess(tab)) {
+          setActiveTab(tab);
+          return;
+        }
+      }
+    }
+  }, [user?.allowedTabs, user?.role, activeTab]);
+
   return (
     <div className="flex flex-col lg:flex-row gap-6 px-4 pb-20 items-start w-full">
       
@@ -298,8 +311,20 @@ export default function AdminPanel({ user, onRefreshUser }: AdminPanelProps) {
 
       {/* RENDER ACTIVE TAB COMPONENT */}
       <div className="flex-1 w-full bg-white/85 backdrop-blur-md p-6 rounded-2xl border border-slate-200/80 shadow-sm min-h-[450px] overflow-hidden">
-        <AnimatePresence mode="wait">
-          {activeTab === 'analytics' && (
+        {!hasAccess(activeTab) ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <ShieldAlert className="h-16 w-16 text-rose-500 mb-4 animate-bounce" />
+            <h3 className="text-lg font-bold text-slate-800">অ্যাক্সেস অস্বীকৃত / Access Denied</h3>
+            <p className="text-slate-500 mt-2 text-sm max-w-sm">
+              আপনার এই বিভাগে প্রবেশের অনুমতি নেই। অনুগ্রহ করে প্রাথমিক অ্যাডমিনের সাথে যোগাযোগ করুন।
+            </p>
+            <p className="text-slate-400 mt-1 text-xs">
+              (You do not have permission to access this section. Please contact the primary administrator.)
+            </p>
+          </div>
+        ) : (
+          <AnimatePresence mode="wait">
+            {activeTab === 'analytics' && (
             <motion.div key="analytics" className="w-full">
               <AnalyticsPanel
                 analytics={analytics}
@@ -391,6 +416,7 @@ export default function AdminPanel({ user, onRefreshUser }: AdminPanelProps) {
             </motion.div>
           )}
         </AnimatePresence>
+        )}
       </div>
 
     </div>

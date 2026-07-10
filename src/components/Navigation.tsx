@@ -118,15 +118,7 @@ export default function Navigation({
               <Trophy className="h-4 w-4 text-yellow-400" />
               <span className="text-yellow-400">{t.leaderboard}</span>
             </button>
-            {user && (user.role === 'admin' || user.role === 'mod' || user.role === 'primary_admin') && (
-              <button 
-                onClick={() => onNavigate('admin')}
-                className={`flex items-center space-x-1.5 rounded-full bg-yellow-400/10 px-3 py-1 border border-yellow-400/20 text-xs text-yellow-400 font-semibold transition hover:bg-yellow-400/25`}
-              >
-                <ShieldCheck className="h-3.5 w-3.5" />
-                <span>{t.admin}</span>
-              </button>
-            )}
+            {/* Admin button removed as per security requirements */}
           </nav>
 
           {/* Right Controls Area */}
@@ -288,18 +280,7 @@ export default function Navigation({
                 <span>{t.leaderboard}</span>
                 <ArrowRight className="h-4 w-4" />
               </button>
-              {user && (user.role === 'admin' || user.role === 'mod' || user.role === 'primary_admin') && (
-                <button 
-                  onClick={() => { onNavigate('admin'); setShowMobileMenu(false); }}
-                  className="flex w-full items-center justify-between text-lg font-bold text-yellow-400 hover:text-white"
-                >
-                  <span className="flex items-center space-x-2">
-                    <ShieldCheck className="h-5 w-5" />
-                    <span>{t.admin} Dashboard</span>
-                  </span>
-                  <ArrowRight className="h-4 w-4" />
-                </button>
-              )}
+              {/* Mobile admin button removed as per security requirements */}
             </div>
 
             <div className="space-y-4 border-t border-[#0e4b3c] pt-6">
