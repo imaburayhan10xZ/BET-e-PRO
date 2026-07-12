@@ -2224,6 +2224,50 @@ export function createApp() {
           read: false,
           createdAt: new Date().toISOString()
         });
+
+        // Check for Referral Bonus on First Deposit
+        if (user.referredBy) {
+          const referrer = db.users.find(u => u.id === user.referredBy);
+          if (referrer) {
+            const previousSuccessfulDepositsCount = db.transactions.filter(t => 
+              t.userId === user.id && 
+              t.type === 'deposit' && 
+              t.status === 'success' && 
+              t.id !== tx.id
+            ).length;
+
+            const alreadyPaid = db.transactions.some(t => 
+              t.userId === referrer.id && 
+              t.type === 'referral_bonus' && 
+              t.description.includes(`for inviting ${user.username}`)
+            );
+
+            if (previousSuccessfulDepositsCount === 0 && !alreadyPaid) {
+              const referralBonus = db.settings.referralBonusAmount !== undefined ? db.settings.referralBonusAmount : 200;
+              referrer.balance += referralBonus;
+              
+              db.transactions.push({
+                id: 'tx_' + Math.random().toString(36).substr(2, 9),
+                userId: referrer.id,
+                username: referrer.username,
+                type: 'referral_bonus' as const,
+                amount: referralBonus,
+                status: 'success' as const,
+                description: `Referral bonus for inviting ${user.username} (First Deposit Completed)`,
+                createdAt: new Date().toISOString()
+              });
+
+              db.notifications.push({
+                id: 'notif_' + Math.random().toString(36).substr(2, 9),
+                userId: referrer.id,
+                title: '👥 Referral Commission Received!',
+                message: `Your friend ${user.fullName} completed their first deposit of ৳${baseAmount}. ৳${referralBonus} referral bonus has been successfully added to your wallet!`,
+                read: false,
+                createdAt: new Date().toISOString()
+              });
+            }
+          }
+        }
       } else {
         tx.description = 'Deposit rejected (invalid TrxID / payment not received)';
         db.notifications.push({

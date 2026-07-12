@@ -1,6 +1,11 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React, { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
-import { ShieldCheck, Plus, Trash2, Edit2, Loader2, ShieldAlert, Check, X, Lock, Key, Eye, EyeOff } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { ShieldCheck, Plus, Trash2, Edit2, Loader2, ShieldAlert, Check, X, Lock, Key, Eye, EyeOff, Users, ChevronRight } from 'lucide-react';
 import { User } from '../../types';
 
 const POSSIBLE_TABS = [
@@ -20,10 +25,11 @@ export default function AdminManagementPanel() {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  // Popup Trigger
+  const [showFormModal, setShowFormModal] = useState(false);
+
   // Form State
-  const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  
   const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -32,9 +38,8 @@ export default function AdminManagementPanel() {
   const [role, setRole] = useState<'admin' | 'mod'>('mod');
   const [selectedTabs, setSelectedTabs] = useState<string[]>([]);
   const [isBlocked, setIsBlocked] = useState(false);
-  
   const [showPassword, setShowPassword] = useState(false);
-
+  
   // Notifications
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -96,7 +101,7 @@ export default function AdminManagementPanel() {
     setSelectedTabs(staff.allowedTabs || []);
     setIsBlocked(staff.isBlocked || false);
     setPassword(''); // leave blank for edits
-    setShowForm(true);
+    setShowFormModal(true);
     setError('');
     setSuccess('');
   };
@@ -111,7 +116,7 @@ export default function AdminManagementPanel() {
     setRole('mod');
     setSelectedTabs([]);
     setIsBlocked(false);
-    setShowForm(false);
+    setShowFormModal(false);
     setError('');
   };
 
@@ -129,7 +134,6 @@ export default function AdminManagementPanel() {
       setSubmitting(true);
 
       if (editId) {
-        // Edit PUT
         const res = await fetch(`/api/admin/admins/${editId}`, {
           method: 'PUT',
           headers: getHeaders(),
@@ -144,11 +148,11 @@ export default function AdminManagementPanel() {
           setSuccess(data.message || 'Permissions updated!');
           handleResetForm();
           fetchAdmins();
+          setTimeout(() => setSuccess(''), 1500);
         } else {
           setError(data.error || 'Failed to update admin account.');
         }
       } else {
-        // Create POST
         const res = await fetch('/api/admin/admins', {
           method: 'POST',
           headers: getHeaders(),
@@ -167,6 +171,7 @@ export default function AdminManagementPanel() {
           setSuccess(data.message || 'New admin account successfully added!');
           handleResetForm();
           fetchAdmins();
+          setTimeout(() => setSuccess(''), 1500);
         } else {
           setError(data.error || 'Failed to create admin account.');
         }
@@ -191,6 +196,7 @@ export default function AdminManagementPanel() {
       if (res.ok) {
         setSuccess(data.message || 'Deleted successfully!');
         fetchAdmins();
+        setTimeout(() => setSuccess(''), 1500);
       } else {
         setError(data.error || 'Failed to delete account.');
       }
@@ -200,277 +206,313 @@ export default function AdminManagementPanel() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* HEADER */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-black text-slate-900">Admin Staff Management</h2>
-          <p className="text-xs text-slate-500">Add secondary admins/moderators and restrict their visual and backend API access limits.</p>
+    <div className="space-y-4 text-xs">
+      {/* HEADER ACTION BAR */}
+      <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-100">
+        <div className="flex items-center space-x-2.5">
+          <Users className="h-4.5 w-4.5 text-[#FF9F00]" />
+          <div>
+            <h3 className="text-xs font-black uppercase text-slate-800 tracking-wider">Admin Staff Management</h3>
+            <span className="text-[10px] text-slate-400 font-bold">Restrict backend API access and visual tabs</span>
+          </div>
         </div>
-        {!showForm && (
-          <button
-            onClick={() => { setShowForm(true); setError(''); setSuccess(''); }}
-            className="flex items-center space-x-1 bg-[#FF9F00] text-slate-950 px-3 py-1.5 rounded-lg text-xs font-black shadow-md shadow-[#FF9F00]/10 hover:opacity-90 transition"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Add Admin / Mod</span>
-          </button>
-        )}
+
+        <button
+          onClick={() => { handleResetForm(); setShowFormModal(true); }}
+          className="flex items-center space-x-1.5 bg-slate-900 hover:bg-[#FF9F00] text-white hover:text-slate-950 px-4 py-2.5 rounded-xl text-xs font-black transition tracking-wider uppercase shadow-xs cursor-pointer"
+        >
+          <Plus className="h-4 w-4" />
+          <span>Add Admin / Mod</span>
+        </button>
       </div>
 
-      {/* WARNING NOTIFICATION */}
-      <div className="bg-yellow-50 text-yellow-800 border border-yellow-100 p-3.5 rounded-xl text-xs font-medium flex items-start space-x-2.5">
-        <ShieldAlert className="h-4.5 w-4.5 text-[#FF9F00] shrink-0 mt-0.5" />
+      {/* SECURITY CONSTRAINTS INFO HEADER */}
+      <div className="bg-amber-50 text-amber-800 border border-amber-100/60 p-4 rounded-2xl font-medium flex items-start space-x-3">
+        <ShieldAlert className="h-4.5 w-4.5 text-[#FF9F00] shrink-0 mt-0.5 animate-pulse" />
         <div className="space-y-0.5">
-          <div className="font-bold">Security Constraint Enforced:</div>
-          <p className="text-slate-600">The Primary Admin account (admin) can only be created or modified directly in Firebase/database. Newly created moderators and secondary admins have their tab access checked on both the client dashboard and the server APIs.</p>
+          <div className="font-extrabold text-[11px] uppercase tracking-wider">Access Security Constraint Enforced</div>
+          <p className="text-slate-600 leading-relaxed text-[10.5px]">The primary administrative node (admin) has locked authorizations. Newly registered secondary admin and moderator channels have their individual tab access restrictions checked on both dashboard visual blocks and secure API routes.</p>
         </div>
       </div>
 
       {error && (
-        <div className="bg-red-50 text-red-600 border border-red-100 p-3 rounded-xl text-xs font-semibold">
+        <div className="bg-red-50 text-red-600 border border-red-100 p-3 rounded-xl font-semibold">
           {error}
         </div>
       )}
 
       {success && (
-        <div className="bg-emerald-50 text-emerald-600 border border-emerald-100 p-3 rounded-xl text-xs font-semibold">
+        <div className="bg-emerald-50 text-emerald-600 border border-emerald-100 p-3 rounded-xl font-semibold">
           {success}
         </div>
       )}
 
-      {/* CREATE / EDIT FORM */}
-      {showForm && (
-        <motion.form 
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          onSubmit={handleSubmit}
-          className="bg-slate-50/80 p-5 rounded-xl border border-slate-200/60 space-y-4"
-        >
-          <div className="text-xs font-black text-slate-800 uppercase tracking-wider pb-2 border-b border-slate-200 flex items-center space-x-1.5 font-mono">
-            <Lock className="h-4 w-4 text-[#FF9F00]" />
-            <span>{editId ? 'Modify Staff Record' : 'Register New Staff Member'}</span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[10px] font-black text-slate-500 uppercase mb-1 font-mono">Full Name</label>
-              <input
-                type="text"
-                placeholder="e.g. Al-Amin Chowdhury"
-                value={fullName}
-                onChange={e => setFullName(e.target.value)}
-                className="w-full bg-white text-xs border border-slate-200 rounded-lg p-2.5 outline-none focus:border-[#FF9F00]"
-                disabled={!!editId}
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-black text-slate-500 uppercase mb-1 font-mono">Username</label>
-              <input
-                type="text"
-                placeholder="e.g. amin_mod"
-                value={username}
-                onChange={e => setUsername(e.target.value)}
-                className="w-full bg-white text-xs border border-slate-200 rounded-lg p-2.5 outline-none focus:border-[#FF9F00]"
-                disabled={!!editId}
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-black text-slate-500 uppercase mb-1 font-mono">Email Address</label>
-              <input
-                type="email"
-                placeholder="e.g. amin@betepro.com"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                className="w-full bg-white text-xs border border-slate-200 rounded-lg p-2.5 outline-none focus:border-[#FF9F00]"
-                disabled={!!editId}
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-black text-slate-500 uppercase mb-1 font-mono">Staff Role</label>
-              <select
-                value={role}
-                onChange={e => setRole(e.target.value as 'admin' | 'mod')}
-                className="w-full bg-white text-xs border border-slate-200 rounded-lg p-2.5 outline-none focus:border-[#FF9F00]"
-              >
-                <option value="mod">Moderator (Mod)</option>
-                <option value="admin">Secondary Admin (Admin)</option>
-              </select>
-            </div>
-
-            {!editId && (
-              <div className="relative">
-                <label className="block text-[10px] font-black text-slate-500 uppercase mb-1 font-mono">Password</label>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Set account password..."
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  className="w-full bg-white text-xs border border-slate-200 rounded-lg p-2.5 outline-none focus:border-[#FF9F00] pr-10"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-7.5 text-slate-400 hover:text-slate-600"
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-            )}
-
-            {editId && (
-              <div className="flex items-center space-x-2 pt-6">
-                <input
-                  type="checkbox"
-                  id="staff_blocked"
-                  checked={isBlocked}
-                  onChange={e => setIsBlocked(e.target.checked)}
-                  className="rounded text-red-600 focus:ring-red-500"
-                />
-                <label htmlFor="staff_blocked" className="text-xs font-bold text-red-600">Block account from logging in</label>
-              </div>
-            )}
-          </div>
-
-          {/* PERMISSIONS TABS MATRIX */}
-          <div className="space-y-2 pt-2 bg-white p-4 rounded-xl border border-slate-200/60 shadow-xs">
-            <div className="flex items-center justify-between">
-              <label className="block text-[10px] font-black text-slate-600 uppercase font-mono">Allowed Panel Sections</label>
-              <div className="flex space-x-2 text-[10px] font-bold text-[#FF9F00]">
-                <button type="button" onClick={handleSelectAll} className="hover:underline">Select All</button>
-                <span>•</span>
-                <button type="button" onClick={handleClearAll} className="hover:underline">Clear All</button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-1">
-              {POSSIBLE_TABS.map(tab => {
-                const isSelected = selectedTabs.includes(tab.id);
-                return (
-                  <button
-                    type="button"
-                    key={tab.id}
-                    onClick={() => handleTabToggle(tab.id)}
-                    className={`flex items-center justify-between text-left p-2 rounded-lg text-xs border transition ${
-                      isSelected 
-                        ? 'bg-amber-50/50 border-[#FF9F00] text-amber-900 font-bold' 
-                        : 'bg-slate-50/50 border-slate-200/80 text-slate-600 hover:bg-slate-100/50'
-                    }`}
-                  >
-                    <span>{tab.name}</span>
-                    <div className={`h-4.5 w-4.5 rounded-full border flex items-center justify-center shrink-0 ml-2 ${
-                      isSelected ? 'border-[#FF9F00] bg-[#FF9F00] text-slate-950' : 'border-slate-300'
-                    }`}>
-                      {isSelected && <Check className="h-3 w-3 stroke-[3px]" />}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="flex space-x-2 justify-end pt-2">
-            <button
-              type="button"
-              onClick={handleResetForm}
-              className="px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 transition"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="flex items-center space-x-1.5 bg-[#FF9F00] text-slate-950 px-4 py-1.5 rounded-lg text-xs font-black shadow-md shadow-[#FF9F00]/10"
-            >
-              {submitting && <Loader2 className="h-3 w-3 animate-spin" />}
-              <span>{editId ? 'Save Configuration' : 'Register Staff Member'}</span>
-            </button>
-          </div>
-        </motion.form>
-      )}
-
-      {/* STAFF DIRECTORY LIST */}
+      {/* STAFF CARDS DIRECTORY */}
       {loading ? (
-        <div className="flex justify-center items-center py-12">
+        <div className="flex justify-center items-center py-12 bg-white rounded-2xl border border-slate-100">
           <Loader2 className="h-6 w-6 animate-spin text-[#FF9F00]" />
         </div>
       ) : admins.length === 0 ? (
-        <div className="text-center py-12 text-slate-400 text-xs bg-white rounded-2xl border border-slate-200/80">
+        <div className="text-center py-12 text-slate-400 bg-white rounded-2xl border border-dashed border-slate-200">
           No secondary staff members registered yet. Use "Add Admin / Mod" to build your team.
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-          <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center space-x-1.5">
-            <ShieldCheck className="h-4 w-4 text-emerald-600" />
-            <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest font-mono">Staff Accounts Directory</h3>
-          </div>
-
-          <div className="divide-y divide-slate-100">
-            {admins.map(staff => (
-              <div key={staff.id} className="p-4 hover:bg-slate-50/50 transition flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="space-y-1.5">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xs font-black text-slate-900">{staff.fullName || 'Staff Account'}</span>
-                    <span className="text-[10px] font-mono text-slate-400">@{staff.username}</span>
-                    <span className={`text-[9px] font-black font-mono tracking-wider px-2 py-0.5 rounded ${
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {admins.map(staff => (
+            <div 
+              key={staff.id} 
+              onClick={() => handleEditClick(staff)}
+              className="cursor-pointer group bg-white rounded-2xl border border-slate-200/80 p-4.5 flex flex-col justify-between space-y-3.5 hover:border-[#FF9F00] transition duration-150"
+            >
+              <div className="space-y-2.5">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs font-black text-slate-900">{staff.fullName || 'Staff Account'}</span>
+                      <span className="text-[10px] font-mono text-slate-400">@{staff.username}</span>
+                    </div>
+                    <span className={`inline-block text-[9px] font-black font-mono tracking-wider px-2 py-0.5 rounded ${
                       staff.role === 'admin' ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
                     }`}>
                       {staff.role === 'admin' ? 'Secondary Admin' : 'Moderator'}
                     </span>
                     {staff.isBlocked && (
-                      <span className="text-[9px] font-black font-mono tracking-wider px-2 py-0.5 rounded bg-red-50 text-red-600 border border-red-100">
+                      <span className="inline-block ml-1.5 text-[9px] font-black font-mono tracking-wider px-2 py-0.5 rounded bg-red-50 text-red-600 border border-red-100">
                         BLOCKED
                       </span>
                     )}
                   </div>
 
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500">
-                    <span>Email: <span className="text-slate-800 font-medium">{staff.email}</span></span>
-                    {staff.phone && <span>Phone: <span className="text-slate-800 font-medium">{staff.phone}</span></span>}
-                  </div>
-
-                  {/* DISPLAY ALLOWED SECTIONS */}
-                  <div className="flex flex-wrap items-center gap-1">
-                    <span className="text-[10px] font-bold text-slate-400 font-mono mr-1">Sections:</span>
-                    {(staff.allowedTabs || []).length === 0 ? (
-                      <span className="text-[10px] text-slate-400 italic">No access granted</span>
-                    ) : (
-                      (staff.allowedTabs || []).map(t => (
-                        <span key={t} className="text-[9px] font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
-                          {POSSIBLE_TABS.find(p => p.id === t)?.name.split(' (')[0] || t}
-                        </span>
-                      ))
-                    )}
-                  </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDelete(staff.id); }}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 transition bg-white border border-slate-100 hover:bg-slate-50"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
                 </div>
 
-                <div className="flex items-center space-x-2 justify-end shrink-0">
-                  <button
-                    onClick={() => handleEditClick(staff)}
-                    className="flex items-center space-x-1 text-xs font-black text-[#FF9F00] px-2.5 py-1.5 rounded-lg border border-amber-200/60 hover:bg-amber-50 transition"
-                  >
-                    <Edit2 className="h-3 w-3" />
-                    <span>Edit Staff</span>
-                  </button>
-                  <button
-                    onClick={() => handleDelete(staff.id)}
-                    className="p-1.5 text-slate-400 hover:text-red-600 transition hover:bg-red-50 rounded-lg"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500 font-medium pt-1 border-t border-slate-50">
+                  <span>Email: <strong className="text-slate-700 font-semibold">{staff.email}</strong></span>
+                  {staff.phone && <span>Phone: <strong className="text-slate-700 font-semibold">{staff.phone}</strong></span>}
+                </div>
+
+                {/* DISPLAY ALLOWED SECTIONS */}
+                <div className="flex flex-wrap items-center gap-1 pt-1">
+                  <span className="text-[9.5px] font-bold text-slate-400 font-mono mr-1">Allowed Tabs:</span>
+                  {(staff.allowedTabs || []).length === 0 ? (
+                    <span className="text-[10px] text-slate-400 italic">No access granted</span>
+                  ) : (
+                    (staff.allowedTabs || []).map(t => (
+                      <span key={t} className="text-[9px] font-black bg-slate-50 text-slate-500 border border-slate-200/40 px-1.5 py-0.5 rounded">
+                        {POSSIBLE_TABS.find(p => p.id === t)?.name.split(' (')[0] || t}
+                      </span>
+                    ))
+                  )}
                 </div>
               </div>
-            ))}
-          </div>
+
+              <div className="pt-2 border-t border-slate-100 flex justify-end items-center text-[10px] font-bold text-slate-400 font-mono">
+                <span className="text-[#FF9F00] group-hover:underline flex items-center space-x-0.5">
+                  <span>Manage Permissions</span>
+                  <ChevronRight className="h-3 w-3" />
+                </span>
+              </div>
+            </div>
+          ))}
         </div>
       )}
+
+      {/* -------------------- POPUP: STAFF REGISTER/MODIFY MODAL -------------------- */}
+      <AnimatePresence>
+        {showFormModal && (
+          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={handleResetForm}
+              className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm"
+            />
+
+            {/* Modal Box */}
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 15 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 15 }}
+              className="relative bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="bg-slate-950 text-white p-5 flex items-center justify-between border-b border-slate-800">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2.5 bg-slate-900 rounded-xl text-[#FF9F00] border border-slate-800 animate-pulse">
+                    <Lock className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 font-mono">Staff Authority Panel</span>
+                    <h4 className="text-[12.5px] font-black text-white">
+                      {editId ? 'Modify Staff Record & Allowed Tabs' : 'Register New Staff Member'}
+                    </h4>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleResetForm}
+                  className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition border border-white/10"
+                >
+                  <X className="h-4.5 w-4.5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4 bg-slate-50/40 text-xs">
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block text-[9.5px] font-bold text-slate-400 uppercase mb-1 font-mono">Full Name</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Al-Amin Chowdhury"
+                      value={fullName}
+                      onChange={e => setFullName(e.target.value)}
+                      className="w-full bg-white text-xs border border-slate-200 rounded-xl p-2.5 outline-none focus:border-[#FF9F00]"
+                      disabled={!!editId}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[9.5px] font-bold text-slate-400 uppercase mb-1 font-mono">Username</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. amin_mod"
+                      value={username}
+                      onChange={e => setUsername(e.target.value)}
+                      className="w-full bg-white text-xs border border-slate-200 rounded-xl p-2.5 outline-none focus:border-[#FF9F00]"
+                      disabled={!!editId}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[9.5px] font-bold text-slate-400 uppercase mb-1 font-mono">Email Address</label>
+                    <input
+                      type="email"
+                      placeholder="e.g. amin@betepro.com"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      className="w-full bg-white text-xs border border-slate-200 rounded-xl p-2.5 outline-none focus:border-[#FF9F00]"
+                      disabled={!!editId}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[9.5px] font-bold text-slate-400 uppercase mb-1 font-mono">Staff Role</label>
+                    <select
+                      value={role}
+                      onChange={e => setRole(e.target.value as 'admin' | 'mod')}
+                      className="w-full bg-white text-xs border border-slate-200 rounded-xl p-2.5 outline-none focus:border-[#FF9F00] font-semibold"
+                    >
+                      <option value="mod">Moderator (Mod)</option>
+                      <option value="admin">Secondary Admin (Admin)</option>
+                    </select>
+                  </div>
+
+                  {!editId && (
+                    <div className="relative">
+                      <label className="block text-[9.5px] font-bold text-slate-400 uppercase mb-1 font-mono">Password</label>
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder="Set account password..."
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        className="w-full bg-white text-xs border border-slate-200 rounded-xl p-2.5 outline-none focus:border-[#FF9F00] pr-10"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3.5 top-7.5 text-slate-400 hover:text-slate-600"
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  )}
+
+                  {editId && (
+                    <div className="flex items-center space-x-2 pt-6">
+                      <input
+                        type="checkbox"
+                        id="staff_blocked_popup"
+                        checked={isBlocked}
+                        onChange={e => setIsBlocked(e.target.checked)}
+                        className="rounded text-red-600 focus:ring-red-500 h-4 w-4 border-slate-300"
+                      />
+                      <label htmlFor="staff_blocked_popup" className="text-xs font-extrabold text-red-600 uppercase">Suspend Login Access</label>
+                    </div>
+                  )}
+                </div>
+
+                {/* PERMISSIONS TABS MATRIX */}
+                <div className="space-y-2 pt-2 bg-white p-4 rounded-2xl border border-slate-200/60 shadow-xs">
+                  <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                    <label className="block text-[10px] font-black text-slate-600 uppercase font-mono">Allowed Panel Sections</label>
+                    <div className="flex space-x-2 text-[10px] font-bold text-[#FF9F00]">
+                      <button type="button" onClick={handleSelectAll} className="hover:underline">Select All</button>
+                      <span>•</span>
+                      <button type="button" onClick={handleClearAll} className="hover:underline">Clear All</button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    {POSSIBLE_TABS.map(tab => {
+                      const isSelected = selectedTabs.includes(tab.id);
+                      return (
+                        <button
+                          type="button"
+                          key={tab.id}
+                          onClick={() => handleTabToggle(tab.id)}
+                          className={`flex items-center justify-between text-left p-2 rounded-xl text-xs border transition ${
+                            isSelected 
+                              ? 'bg-amber-50/50 border-[#FF9F00] text-amber-900 font-bold' 
+                              : 'bg-slate-50/50 border-slate-200/80 text-slate-600 hover:bg-slate-100/50'
+                          }`}
+                        >
+                          <span>{tab.name.split(' (')[0]}</span>
+                          <div className={`h-4.5 w-4.5 rounded-full border flex items-center justify-center shrink-0 ml-2 ${
+                            isSelected ? 'border-[#FF9F00] bg-[#FF9F00] text-slate-950' : 'border-slate-300'
+                          }`}>
+                            {isSelected && <Check className="h-3 w-3 stroke-[3px]" />}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="flex space-x-2 justify-end pt-3 border-t border-slate-150">
+                  <button
+                    type="button"
+                    onClick={handleResetForm}
+                    className="py-2.5 px-4 rounded-xl text-[10px] font-bold border border-slate-200 text-slate-500 hover:bg-slate-100 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="py-2.5 px-5 rounded-xl text-[10px] font-black uppercase tracking-wider bg-slate-900 hover:bg-[#FF9F00] text-white hover:text-slate-950 transition flex items-center space-x-1.5"
+                  >
+                    {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    <span>{editId ? 'Save Configuration' : 'Register Staff Member'}</span>
+                  </button>
+                </div>
+
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }

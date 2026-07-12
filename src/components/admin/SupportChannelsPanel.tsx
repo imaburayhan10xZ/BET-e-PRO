@@ -1,6 +1,14 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React, { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
-import { Phone, Send, MessageSquare, Plus, Edit2, Trash2, ToggleLeft, ToggleRight, Loader2, Link2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { 
+  Phone, Send, MessageSquare, Plus, Edit2, Trash2, ToggleLeft, ToggleRight, 
+  Loader2, Link2, X, AlertCircle, Check, ChevronRight, HelpCircle
+} from 'lucide-react';
 import { SupportChannel } from '../../types';
 
 export default function SupportChannelsPanel() {
@@ -8,13 +16,15 @@ export default function SupportChannelsPanel() {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   
+  // Popup Trigger
+  const [showFormModal, setShowFormModal] = useState(false);
+
   // Form State
   const [editId, setEditId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [link, setLink] = useState('');
   const [icon, setIcon] = useState('Phone');
   const [active, setActive] = useState(true);
-  const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -54,7 +64,7 @@ export default function SupportChannelsPanel() {
     setLink(c.link);
     setIcon(c.icon);
     setActive(c.active);
-    setShowForm(true);
+    setShowFormModal(true);
     setError('');
     setSuccess('');
   };
@@ -65,7 +75,7 @@ export default function SupportChannelsPanel() {
     setLink('');
     setIcon('Phone');
     setActive(true);
-    setShowForm(false);
+    setShowFormModal(false);
     setError('');
   };
 
@@ -96,6 +106,9 @@ export default function SupportChannelsPanel() {
         setSuccess(data.message);
         handleResetForm();
         fetchChannels();
+        setTimeout(() => {
+          setSuccess('');
+        }, 1500);
       } else {
         setError(data.error || 'Failed to save channel.');
       }
@@ -118,6 +131,9 @@ export default function SupportChannelsPanel() {
       if (res.ok) {
         setSuccess(data.message);
         fetchChannels();
+        setTimeout(() => {
+          setSuccess('');
+        }, 1500);
       } else {
         setError(data.error || 'Failed to toggle status.');
       }
@@ -139,6 +155,9 @@ export default function SupportChannelsPanel() {
       if (res.ok) {
         setSuccess(data.message);
         fetchChannels();
+        setTimeout(() => {
+          setSuccess('');
+        }, 1500);
       } else {
         setError(data.error || 'Failed to delete channel.');
       }
@@ -157,148 +176,75 @@ export default function SupportChannelsPanel() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-black text-slate-900">Support Channels</h2>
-          <p className="text-xs text-slate-500">Configure public support links like WhatsApp, Telegram, or Live Chat.</p>
+    <div className="space-y-4 text-xs">
+      
+      {/* Top action header bar */}
+      <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-100">
+        <div className="flex items-center space-x-2.5">
+          <HelpCircle className="h-4.5 w-4.5 text-[#FF9F00]" />
+          <div>
+            <h3 className="text-xs font-black uppercase text-slate-800 tracking-wider">Gateway Support Nodes</h3>
+            <span className="text-[10px] text-slate-400 font-bold">Configure client help desk hotlines</span>
+          </div>
         </div>
-        {!showForm && (
-          <button
-            onClick={() => { setShowForm(true); setError(''); setSuccess(''); }}
-            className="flex items-center space-x-1 bg-[#FF9F00] text-slate-950 px-3 py-1.5 rounded-lg text-xs font-black shadow-md shadow-[#FF9F00]/10 hover:opacity-90 transition"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Add Channel</span>
-          </button>
-        )}
+
+        <button
+          onClick={() => { handleResetForm(); setShowFormModal(true); }}
+          className="flex items-center space-x-1.5 bg-slate-900 hover:bg-[#FF9F00] text-white hover:text-slate-950 px-4 py-2.5 rounded-xl text-xs font-black transition tracking-wider uppercase shadow-xs cursor-pointer"
+        >
+          <Plus className="h-4 w-4" />
+          <span>Add Support Helpline</span>
+        </button>
       </div>
 
       {error && (
-        <div className="bg-red-50 text-red-600 border border-red-100 p-3 rounded-xl text-xs font-semibold">
-          {error}
+        <div className="bg-red-50 text-red-600 border border-red-100 p-3 rounded-xl font-semibold flex items-center space-x-2">
+          <AlertCircle className="h-4 w-4" />
+          <span>{error}</span>
         </div>
       )}
 
       {success && (
-        <div className="bg-emerald-50 text-emerald-600 border border-emerald-100 p-3 rounded-xl text-xs font-semibold">
-          {success}
+        <div className="bg-emerald-50 text-emerald-600 border border-emerald-100 p-3 rounded-xl font-semibold flex items-center space-x-2">
+          <Check className="h-4 w-4" />
+          <span>{success}</span>
         </div>
       )}
 
-      {showForm && (
-        <motion.form 
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          onSubmit={handleSubmit}
-          className="bg-slate-50/80 p-4 rounded-xl border border-slate-200/60 space-y-4"
-        >
-          <div className="text-xs font-bold text-slate-700 pb-1 border-b border-slate-200">
-            {editId ? 'Edit Support Channel' : 'Create New Support Channel'}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1 font-mono">Channel Name *</label>
-              <input
-                type="text"
-                placeholder="e.g. WhatsApp Support"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                className="w-full bg-white text-xs border border-slate-200 rounded-lg p-2.5 outline-none focus:border-[#FF9F00]"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1 font-mono">Link URL *</label>
-              <input
-                type="text"
-                placeholder="e.g. https://wa.me/8801700..."
-                value={link}
-                onChange={e => setLink(e.target.value)}
-                className="w-full bg-white text-xs border border-slate-200 rounded-lg p-2.5 outline-none focus:border-[#FF9F00]"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1 font-mono">Icon Design</label>
-              <select
-                value={icon}
-                onChange={e => setIcon(e.target.value)}
-                className="w-full bg-white text-xs border border-slate-200 rounded-lg p-2.5 outline-none focus:border-[#FF9F00]"
-              >
-                <option value="Phone">WhatsApp (Phone)</option>
-                <option value="Send">Telegram (Send)</option>
-                <option value="MessageSquare">Live Chat (Message)</option>
-              </select>
-            </div>
-
-            <div className="flex items-center space-x-2 pt-6">
-              <input
-                type="checkbox"
-                id="channel_active"
-                checked={active}
-                onChange={e => setActive(e.target.checked)}
-                className="rounded text-[#FF9F00] focus:ring-[#FF9F00]"
-              />
-              <label htmlFor="channel_active" className="text-xs font-bold text-slate-700">Display publicly to players</label>
-            </div>
-          </div>
-
-          <div className="flex space-x-2 justify-end pt-2">
-            <button
-              type="button"
-              onClick={handleResetForm}
-              className="px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 transition"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="flex items-center space-x-1.5 bg-[#FF9F00] text-slate-950 px-4 py-1.5 rounded-lg text-xs font-black shadow-md shadow-[#FF9F00]/10"
-            >
-              {submitting && <Loader2 className="h-3 w-3 animate-spin" />}
-              <span>{editId ? 'Save Changes' : 'Publish Channel'}</span>
-            </button>
-          </div>
-        </motion.form>
-      )}
-
+      {/* Main List Layout */}
       {loading ? (
         <div className="flex justify-center items-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-[#FF9F00]" />
         </div>
       ) : channels.length === 0 ? (
-        <div className="text-center py-12 text-slate-400 text-xs">
-          No support channels configured. Click "Add Channel" to create one.
+        <div className="text-center py-12 bg-white border border-dashed border-slate-200 rounded-2xl text-slate-400">
+          No support channels configured. Click "Add Support Helpline" to build one.
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {channels.map(c => (
             <div 
               key={c.id} 
-              className={`p-4 rounded-xl border transition ${
-                c.active ? 'bg-white border-slate-200/80 shadow-sm' : 'bg-slate-50/60 border-dashed border-slate-200 text-slate-400'
+              onClick={() => handleEditClick(c)}
+              className={`cursor-pointer group p-4.5 rounded-2xl border transition hover:border-[#FF9F00] flex flex-col justify-between space-y-3.5 ${
+                c.active ? 'bg-white border-slate-200/80 shadow-xs' : 'bg-slate-50/60 border-dashed border-slate-200 text-slate-400'
               }`}
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center space-x-3">
-                  <div className={`p-2 rounded-lg ${c.active ? 'bg-slate-50' : 'bg-slate-100'}`}>
+                  <div className={`p-2.5 rounded-xl ${c.active ? 'bg-slate-50 border border-slate-100' : 'bg-slate-100'}`}>
                     {renderIcon(c.icon)}
                   </div>
                   <div>
-                    <h3 className="text-xs font-black text-slate-900">{c.name}</h3>
-                    <div className="flex items-center text-[10px] text-slate-500 font-mono mt-0.5 truncate max-w-[150px]">
-                      <Link2 className="h-3 w-3 mr-0.5" />
-                      <a href={c.link} target="_blank" rel="noreferrer" className="hover:underline">{c.link}</a>
+                    <h3 className="text-[12px] font-black text-slate-900 group-hover:text-[#FF9F00] transition">{c.name}</h3>
+                    <div className="flex items-center text-[10px] text-slate-400 font-mono mt-1 max-w-[150px] truncate">
+                      <Link2 className="h-3 w-3 mr-0.5 text-slate-300" />
+                      <span className="truncate">{c.link}</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center space-x-1">
+                <div className="flex items-center space-x-1" onClick={e => e.stopPropagation()}>
                   <button
                     onClick={() => handleToggle(c.id)}
                     title={c.active ? 'Hide from players' : 'Show to players'}
@@ -307,25 +253,143 @@ export default function SupportChannelsPanel() {
                     {c.active ? <ToggleRight className="h-5 w-5 text-emerald-500" /> : <ToggleLeft className="h-5 w-5 text-slate-300" />}
                   </button>
                   <button
-                    onClick={() => handleEditClick(c)}
-                    title="Edit channel details"
-                    className="p-1 text-slate-400 hover:text-blue-600 transition"
-                  >
-                    <Edit2 className="h-3.5 w-3.5" />
-                  </button>
-                  <button
                     onClick={() => handleDelete(c.id)}
                     title="Delete channel"
-                    className="p-1 text-slate-400 hover:text-red-600 transition"
+                    className="p-1.5 text-slate-400 hover:text-red-600 transition bg-white border border-slate-200 rounded-lg shadow-xs"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
               </div>
+
+              <div className="pt-2 border-t border-slate-100 flex justify-end items-center text-[10px] font-bold text-slate-400 font-mono">
+                <span className="text-[#FF9F00] group-hover:underline flex items-center space-x-0.5">
+                  <span>Manage Helpline</span>
+                  <ChevronRight className="h-3 w-3" />
+                </span>
+              </div>
             </div>
           ))}
         </div>
       )}
+
+      {/* -------------------- POPUP: HELPLINE BUILDER MODAL -------------------- */}
+      <AnimatePresence>
+        {showFormModal && (
+          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={handleResetForm}
+              className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm"
+            />
+
+            {/* Modal Box */}
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 15 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 15 }}
+              className="relative bg-white w-full max-w-sm rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col"
+            >
+              <div className="bg-slate-950 text-white p-5 flex items-center justify-between border-b border-slate-800">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2.5 bg-slate-900 rounded-xl text-[#FF9F00] border border-slate-800 animate-pulse">
+                    <Plus className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 font-mono font-bold">Helpline system</span>
+                    <h4 className="text-[12.5px] font-black text-white">
+                      {editId ? 'Modify Support Helpline' : 'Publish Support Helpline'}
+                    </h4>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleResetForm}
+                  className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition border border-white/10"
+                >
+                  <X className="h-4.5 w-4.5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="p-6 space-y-4 bg-slate-50/40 text-xs">
+                
+                <div className="space-y-1">
+                  <label className="block text-[9px] font-bold text-slate-400 uppercase">Channel Name *</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. WhatsApp Support"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    className="w-full bg-white text-xs border border-slate-200 rounded-xl p-2.5 outline-none focus:border-[#FF9F00]"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[9px] font-bold text-slate-400 uppercase">Link URL *</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. https://wa.me/8801700..."
+                    value={link}
+                    onChange={e => setLink(e.target.value)}
+                    className="w-full bg-white text-xs border border-slate-200 rounded-xl p-2.5 outline-none focus:border-[#FF9F00]"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="space-y-1">
+                    <label className="block text-[9px] font-bold text-slate-400 uppercase">Icon Design</label>
+                    <select
+                      value={icon}
+                      onChange={e => setIcon(e.target.value)}
+                      className="w-full bg-white text-xs border border-slate-200 rounded-xl p-2.5 outline-none focus:border-[#FF9F00]"
+                    >
+                      <option value="Phone">WhatsApp (Phone)</option>
+                      <option value="Send">Telegram (Send)</option>
+                      <option value="MessageSquare">Live Chat (Message)</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center space-x-2 pt-5">
+                    <input
+                      type="checkbox"
+                      id="channel_active_popup"
+                      checked={active}
+                      onChange={e => setActive(e.target.checked)}
+                      className="rounded text-[#FF9F00] h-4 w-4 border-slate-300 focus:ring-[#FF9F00]"
+                    />
+                    <label htmlFor="channel_active_popup" className="text-[11px] font-bold text-slate-600">Display Live</label>
+                  </div>
+                </div>
+
+                <div className="flex space-x-2 justify-end pt-3 border-t border-slate-150">
+                  <button
+                    type="button"
+                    onClick={handleResetForm}
+                    className="py-2.5 px-4 rounded-xl text-[10px] font-bold border border-slate-200 text-slate-500 hover:bg-slate-100 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="py-2.5 px-5 rounded-xl text-[10px] font-black uppercase tracking-wider bg-slate-900 hover:bg-[#FF9F00] text-white hover:text-slate-950 transition flex items-center space-x-1.5"
+                  >
+                    {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    <span>{editId ? 'Save Changes' : 'Publish Helpline'}</span>
+                  </button>
+                </div>
+
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }

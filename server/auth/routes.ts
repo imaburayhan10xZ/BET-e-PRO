@@ -46,7 +46,7 @@ router.post('/register', async (req, res) => {
     const userReferral = 'BET-' + username.substring(0, 4).toUpperCase() + Math.floor(100 + Math.random() * 900);
     const signupBonus = db.settings.signupBonusAmount !== undefined ? db.settings.signupBonusAmount : 500;
     const referralBonus = db.settings.referralBonusAmount !== undefined ? db.settings.referralBonusAmount : 200;
-    const startBalance = referredBy ? signupBonus + referralBonus : signupBonus; 
+    const startBalance = signupBonus; 
 
     // Create profile
     const newUser = {
@@ -83,22 +83,11 @@ router.post('/register', async (req, res) => {
     if (referredBy) {
       const referrer = db.users.find(u => u.id === referredBy);
       if (referrer) {
-        referrer.balance += referralBonus; // Dynamic referral bonus
-        db.transactions.push({
-          id: 'tx_' + Math.random().toString(36).substr(2, 9),
-          userId: referrer.id,
-          username: referrer.username,
-          type: 'referral_bonus' as const,
-          amount: referralBonus,
-          status: 'success' as const,
-          description: `Referral bonus for inviting ${username}`,
-          createdAt: new Date().toISOString()
-        });
         db.notifications.push({
           id: 'notif_' + Math.random().toString(36).substr(2, 9),
           userId: referrer.id,
-          title: '👥 Referral Bonus Credited!',
-          message: `Your friend ${fullName} registered using your link. ৳${referralBonus} referral bonus was added to your wallet!`,
+          title: '👥 Friend Joined (Reward Pending)',
+          message: `Your friend ${fullName} registered using your referral link. You will receive a ৳${referralBonus} referral bonus as soon as they make their first deposit!`,
           read: false,
           createdAt: new Date().toISOString()
         });
@@ -388,7 +377,7 @@ router.post('/firebase-sync', async (req, res) => {
 
       const signupBonus = db.settings.signupBonusAmount !== undefined ? db.settings.signupBonusAmount : 500;
       const referralBonus = db.settings.referralBonusAmount !== undefined ? db.settings.referralBonusAmount : 200;
-      const startBalance = referredBy ? signupBonus + referralBonus : signupBonus;
+      const startBalance = signupBonus;
       const userReferral = 'BET-' + finalUsername.substring(0, 4).toUpperCase() + Math.floor(100 + Math.random() * 900);
       const role: 'primary_admin' | 'user' = (email.toLowerCase() === 'admin@betepro.com' || email.toLowerCase() === 'aburayhan10x@gmail.com') ? 'primary_admin' : 'user';
 
@@ -424,22 +413,11 @@ router.post('/firebase-sync', async (req, res) => {
       if (referredBy) {
         const referrer = db.users.find(u => u.id === referredBy);
         if (referrer) {
-          referrer.balance += referralBonus;
-          db.transactions.push({
-            id: 'tx_' + Math.random().toString(36).substr(2, 9),
-            userId: referrer.id,
-            username: referrer.username,
-            type: 'referral_bonus' as const,
-            amount: referralBonus,
-            status: 'success' as const,
-            description: `Referral bonus for inviting ${finalUsername}`,
-            createdAt: new Date().toISOString()
-          });
           db.notifications.push({
             id: 'notif_' + Math.random().toString(36).substr(2, 9),
             userId: referrer.id,
-            title: '👥 Referral Bonus Credited!',
-            message: `Your friend ${finalUsername} registered using your link. ৳${referralBonus} referral bonus was added to your wallet!`,
+            title: '👥 Friend Joined (Reward Pending)',
+            message: `Your friend ${finalUsername} registered using your referral link. You will receive a ৳${referralBonus} referral bonus as soon as they make their first deposit!`,
             read: false,
             createdAt: new Date().toISOString()
           });

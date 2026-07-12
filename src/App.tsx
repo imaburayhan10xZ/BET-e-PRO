@@ -408,17 +408,28 @@ export default function App() {
     }
   };
 
-  // Enforce absolute role-based lock: Admin/mod/primary_admin can ONLY access /cockpit
+  // Support referral link parsing: exampledomain.com/ref?id=BET-XYZ or /?ref=BET-XYZ
   useEffect(() => {
-    if (user && (user.role === 'admin' || user.role === 'mod' || user.role === 'primary_admin')) {
-      if (currentTab !== 'cockpit') {
-        setCurrentTab('cockpit');
-      }
-      if (window.location.pathname !== '/cockpit') {
-        window.history.pushState({}, '', '/cockpit');
-      }
+    if (user) return;
+    
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('ref') || params.get('id') || params.get('code');
+    
+    // Check path as well, in case they did /ref/XYZ or similar
+    let pathRef = '';
+    if (window.location.pathname.startsWith('/ref/')) {
+      pathRef = window.location.pathname.substring(5);
     }
-  }, [user, currentTab]);
+    
+    const finalRefCode = ref || pathRef;
+
+    if (finalRefCode) {
+      setReferralCode(finalRefCode);
+      setAuthMode('register');
+      // Clean up URL to look neat
+      window.history.replaceState({}, '', '/');
+    }
+  }, [user]);
 
   // Background real-time profile sync for all users (updates roles, permissions, balance instantly)
   useEffect(() => {
@@ -437,19 +448,12 @@ export default function App() {
   // Support manual URL change, page refreshes and browser history events for /cockpit
   useEffect(() => {
     const handleLocationChange = () => {
-      // If we are logged in as admin/mod, we must stay in cockpit
-      if (user && (user.role === 'admin' || user.role === 'mod' || user.role === 'primary_admin')) {
-        setCurrentTab('cockpit');
-        if (window.location.pathname !== '/cockpit') {
-          window.history.pushState({}, '', '/cockpit');
-        }
-        return;
-      }
-
       if (window.location.pathname === '/cockpit') {
         setCurrentTab('cockpit');
       } else {
-        setCurrentTab('home');
+        if (currentTab === 'cockpit') {
+          setCurrentTab('home');
+        }
       }
     };
 
@@ -459,7 +463,7 @@ export default function App() {
     return () => {
       window.removeEventListener('popstate', handleLocationChange);
     };
-  }, [user?.role]); // Only re-subscribe if user role changes
+  }, [currentTab]);
 
   // Synchronize client state with native Firebase Auth SDK (Subscribed ONCE on mount)
   useEffect(() => {
@@ -505,20 +509,6 @@ export default function App() {
   }, []);
 
   const navigateTo = (tab: string) => {
-    // If user is admin/mod, they are locked to cockpit
-    if (user && (user.role === 'admin' || user.role === 'mod' || user.role === 'primary_admin')) {
-      if (tab !== 'cockpit') {
-        console.warn('[SECURITY] Admins cannot access user panel.');
-        return;
-      }
-    }
-
-    // If current tab is cockpit, prevent switching to any user tab
-    if (currentTab === 'cockpit' && tab !== 'cockpit') {
-      console.warn('[SECURITY] Cockpit tab is locked.');
-      return;
-    }
-
     if (tab === 'cockpit') {
       window.history.pushState({}, '', '/cockpit');
     } else {

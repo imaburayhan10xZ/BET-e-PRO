@@ -4,8 +4,8 @@
  */
 
 import React, { useState } from 'react';
-import { motion } from 'motion/react';
-import { FileText, Send, Check, RefreshCw, MessageSquare, ShieldAlert } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { FileText, Send, Check, RefreshCw, MessageSquare, ShieldAlert, X, Eye, ChevronRight } from 'lucide-react';
 import { SupportTicket } from '../../types';
 
 interface TicketsPanelProps {
@@ -18,7 +18,7 @@ const PRESET_TEMPLATES = [
   { label: 'Verify Deposit ✅', text: 'We have manually cross-referenced your mobile ledger ID and successfully credited BDT to your player balance. Thank you for your patience!' },
   { label: 'Withdraw Transit 🏦', text: 'Your withdrawal voucher has been verified and released from our bKash nodes. Funds should land inside your wallet within 15-30 minutes.' },
   { label: 'Verification Request 🛡️', text: 'To complete your security audit, please upload an image of your NID card or billing statement in live support or email support@betepro.com.' },
-  { label: 'Bet Dispute Refused ❌', text: 'We have audited the official match statistics feed for your prediction. The settlement stands as resolved according to sports league records.' }
+  { label: 'Dispute Refused ❌', text: 'We have audited the official match statistics feed for your prediction. The settlement stands as resolved according to sports league records.' }
 ];
 
 export default function TicketsPanel({ tickets, loading, onRefresh }: TicketsPanelProps) {
@@ -51,9 +51,12 @@ export default function TicketsPanel({ tickets, loading, onRefresh }: TicketsPan
       if (res.ok) {
         setReplyFeedback('Your response has been dispatched to the player.');
         setReplyText('');
-        // Update selected state locally
         setSelectedTicket({ ...selectedTicket, status: 'replied' });
         onRefresh();
+        setTimeout(() => {
+          setSelectedTicket(null);
+          setReplyFeedback('');
+        }, 1200);
       } else {
         setReplyFeedback(data.error || 'Failed to dispatch reply.');
       }
@@ -79,13 +82,15 @@ export default function TicketsPanel({ tickets, loading, onRefresh }: TicketsPan
           setSelectedTicket({ ...selectedTicket, status: 'closed' as any });
         }
         onRefresh();
+        setTimeout(() => {
+          setSelectedTicket(null);
+        }, 1000);
       }
     } catch (err) {
       console.error(err);
     }
   };
 
-  // Filter logic
   const filteredTickets = tickets.filter(t => {
     if (statusFilter === 'all') return true;
     if (statusFilter === 'open') return t.status === 'open';
@@ -97,170 +102,229 @@ export default function TicketsPanel({ tickets, loading, onRefresh }: TicketsPan
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="space-y-6"
+      className="space-y-4 text-xs"
     >
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        
-        {/* Support inquiries list panel */}
-        <div className="md:col-span-1 space-y-3.5">
-          <div className="flex justify-between items-center border-b border-slate-100 pb-2">
-            <h3 className="text-xs font-black uppercase text-slate-800 tracking-wider">Player Inbox</h3>
-            <button onClick={onRefresh} className="p-1 rounded text-slate-500 hover:text-slate-800 transition">
-              <RefreshCw className="h-3.5 w-3.5" />
-            </button>
+      {/* Search & Filter Header Bar */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-100">
+        <div className="flex items-center space-x-2.5">
+          <MessageSquare className="h-4.5 w-4.5 text-[#FF9F00]" />
+          <div>
+            <h3 className="text-xs font-black uppercase text-slate-800 tracking-wider">Player Inbox Support Tickets</h3>
+            <span className="text-[10px] text-slate-400 font-bold">Manage incoming customer queries and complaints</span>
           </div>
+        </div>
 
+        <div className="flex items-center space-x-2 shrink-0">
           <select
             value={statusFilter}
             onChange={(e: any) => setStatusFilter(e.target.value)}
-            className="w-full rounded-xl bg-slate-50 border border-slate-200 p-2.5 text-xs text-slate-700"
+            className="rounded-xl bg-slate-50 border border-slate-200 p-2.5 text-xs text-slate-700 focus:outline-none focus:border-[#FF9F00] focus:bg-white"
           >
             <option value="all">Inbox: All Inquiries</option>
             <option value="open">Active Open Tickets</option>
             <option value="closed">Resolved/Replied History</option>
           </select>
-
-          <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
-            {loading && tickets.length === 0 ? (
-              <p className="text-center py-10 text-slate-400 animate-pulse text-xs">Opening ticketing database...</p>
-            ) : filteredTickets.length === 0 ? (
-              <p className="text-center py-10 text-slate-400 font-medium text-xs">Support inbox completely clear!</p>
-            ) : (
-              filteredTickets.map(t => (
-                <div
-                  key={t.id}
-                  onClick={() => setSelectedTicket(t)}
-                  className={`rounded-xl border p-3.5 text-xs cursor-pointer transition ${
-                    selectedTicket?.id === t.id
-                      ? 'border-[#FF9F00] bg-[#FF9F00]/5'
-                      : 'border-slate-200 bg-white hover:bg-slate-50/50'
-                  }`}
-                >
-                  <div className="flex justify-between items-center mb-1.5">
-                    <span className="font-extrabold text-slate-800 text-[11px] truncate max-w-[120px]">{t.subject}</span>
-                    {t.status === 'open' ? (
-                      <span className="inline-block rounded-full bg-amber-50 border border-amber-100 px-2 py-0.5 text-[8px] font-black text-amber-600 uppercase">Open</span>
-                    ) : (
-                      <span className="inline-block rounded-full bg-emerald-50 border border-emerald-100 px-2 py-0.5 text-[8px] font-black text-[#1FA66A] uppercase">Resolved</span>
-                    )}
-                  </div>
-                  <p className="text-slate-500 text-[10px] truncate leading-normal">{t.message}</p>
-                  <div className="flex justify-between items-center text-[8.5px] text-slate-400 font-mono mt-2">
-                    <span>User: <span className="font-bold text-slate-600">{t.username}</span></span>
-                    <span>Ticket: {t.id}</span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+          
+          <button 
+            onClick={onRefresh} 
+            className="p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-500 hover:text-slate-800 transition cursor-pointer"
+            title="Refresh inbox"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </button>
         </div>
+      </div>
 
-        {/* Reply workspace */}
-        <div className="md:col-span-2">
-          {selectedTicket ? (
-            <div className="bg-slate-50/40 border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm">
-              <div className="border-b border-slate-200/80 pb-3 flex justify-between items-start">
-                <div>
-                  <span className="text-[9px] font-black uppercase text-[#FF9F00] tracking-widest font-mono">Administrative Helpdesk desk</span>
-                  <h4 className="text-xs font-black text-slate-900 mt-1">Inquiry: {selectedTicket.subject}</h4>
-                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">Submitted by: {selectedTicket.username} ({selectedTicket.userId})</p>
+      {/* Main Inbox List Layout (Full Width) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {loading && tickets.length === 0 ? (
+          <div className="col-span-full text-center py-12 bg-white border border-slate-200 rounded-2xl">
+            <RefreshCw className="h-5 w-5 text-[#FF9F00] animate-spin mx-auto mb-2.5" />
+            <span className="font-semibold text-slate-500">Opening ticketing database...</span>
+          </div>
+        ) : filteredTickets.length === 0 ? (
+          <div className="col-span-full text-center py-12 bg-white border border-dashed border-slate-200 rounded-2xl text-slate-400 font-semibold">
+            Support inbox is completely clear! No tickets match filter settings.
+          </div>
+        ) : (
+          filteredTickets.map(t => (
+            <div
+              key={t.id}
+              onClick={() => { setSelectedTicket(t); setReplyText(''); setReplyFeedback(''); }}
+              className="cursor-pointer group rounded-2xl border border-slate-200 bg-white p-4.5 flex flex-col justify-between space-y-3.5 hover:border-[#FF9F00] transition duration-150"
+            >
+              <div className="space-y-2.5">
+                <div className="flex justify-between items-center">
+                  {t.status === 'open' ? (
+                    <span className="inline-block rounded-full bg-amber-50 border border-amber-100/50 px-2.5 py-0.5 text-[8px] font-black text-amber-600 uppercase font-mono">Open</span>
+                  ) : (
+                    <span className="inline-block rounded-full bg-emerald-50 border border-emerald-100/50 px-2.5 py-0.5 text-[8px] font-black text-[#1FA66A] uppercase font-mono font-bold">Resolved</span>
+                  )}
+                  <span className="text-[9px] text-slate-400 font-mono">ID: {t.id.slice(0, 8)}...</span>
                 </div>
-                {selectedTicket.status === 'open' && (
-                  <button
-                    onClick={() => handleCloseTicket(selectedTicket.id)}
-                    className="flex items-center space-x-1 py-1 px-2.5 rounded bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 font-bold text-[9px] uppercase transition"
-                  >
-                    <Check className="h-3 w-3 text-[#1FA66A]" />
-                    <span>Close Ticket</span>
-                  </button>
-                )}
+
+                <h4 className="font-black text-slate-800 text-[12.5px] truncate group-hover:text-[#FF9F00] transition">{t.subject}</h4>
+                <p className="text-slate-500 text-[11px] leading-relaxed line-clamp-2">{t.message}</p>
               </div>
 
-              {/* Chat thread display */}
-              <div className="space-y-3.5 max-h-[160px] overflow-y-auto bg-white border border-slate-200/80 p-4 rounded-xl shadow-inner">
-                <div className="space-y-1">
-                  <span className="text-[8.5px] font-black text-slate-400 uppercase tracking-wider block">Original Message</span>
-                  <div className="bg-slate-55 rounded-xl p-3 text-slate-700 text-xs leading-relaxed max-w-[85%] border border-slate-100">
-                    {selectedTicket.message}
+              <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-[10px] text-slate-400 font-bold font-mono">
+                <span>Player: <strong className="text-slate-700">{t.username}</strong></span>
+                <span className="text-[#FF9F00] group-hover:underline flex items-center space-x-0.5">
+                  <span>View & Respond</span>
+                  <ChevronRight className="h-3 w-3" />
+                </span>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* -------------------- POPUP: TICKET HELP-DESK MODAL -------------------- */}
+      <AnimatePresence>
+        {selectedTicket && (
+          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedTicket(null)}
+              className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm"
+            />
+
+            {/* Modal Box */}
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 15 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 15 }}
+              className="relative bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              {/* Header */}
+              <div className="bg-slate-950 text-white p-5 flex items-center justify-between border-b border-slate-800">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2.5 bg-slate-900 rounded-xl text-amber-400 border border-slate-800">
+                    <FileText className="h-5 w-5 animate-pulse" />
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 font-mono">Staff helpdesk</span>
+                    <h4 className="text-[12.5px] font-black text-white">{selectedTicket.subject}</h4>
                   </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTicket(null)}
+                  className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition border border-white/10"
+                >
+                  <X className="h-4.5 w-4.5" />
+                </button>
+              </div>
 
-                {selectedTicket.status !== 'open' && (
-                  <div className="space-y-1 text-right">
-                    <span className="text-[8.5px] font-black text-[#1FA66A] uppercase tracking-wider block">Admin response</span>
-                    <div className="inline-block bg-[#1FA66A]/5 rounded-xl p-3 text-slate-700 text-xs leading-relaxed max-w-[85%] border border-[#1FA66A]/10 text-left">
-                      Representative Response dispatched successfully. Ticket stands resolved.
+              {/* Form Body */}
+              <div className="p-6 overflow-y-auto space-y-4 bg-slate-50/40 text-xs flex-1">
+                
+                {/* User reference row */}
+                <div className="flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase pb-2 border-b border-slate-100 font-mono">
+                  <span>Player: <strong className="text-slate-700">{selectedTicket.username}</strong></span>
+                  <span>ID: <strong className="text-slate-700">{selectedTicket.userId}</strong></span>
+                </div>
+
+                {/* Thread chat bubble view */}
+                <div className="space-y-3 bg-white p-4.5 rounded-2xl border border-slate-100 shadow-inner max-h-[180px] overflow-y-auto">
+                  <div className="space-y-1">
+                    <span className="text-[8.5px] font-black text-slate-400 uppercase tracking-wider block font-mono">Original Player Query</span>
+                    <div className="bg-slate-50 rounded-xl p-3 text-slate-700 text-xs leading-relaxed max-w-[85%] border border-slate-100 font-medium">
+                      {selectedTicket.message}
+                    </div>
+                  </div>
+
+                  {selectedTicket.status !== 'open' && (
+                    <div className="space-y-1 text-right">
+                      <span className="text-[8.5px] font-black text-emerald-500 uppercase tracking-wider block font-mono">Representative response</span>
+                      <div className="inline-block bg-emerald-50/50 rounded-xl p-3 text-slate-700 text-xs leading-relaxed max-w-[85%] border border-emerald-100 text-left font-medium">
+                        Representative Response dispatched successfully. Ticket status stands resolved.
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Quick Presets Selection (Only if ticket is open) */}
+                {selectedTicket.status === 'open' && (
+                  <div className="space-y-2">
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block font-mono">Quick Response Presets</span>
+                    <div className="grid grid-cols-2 gap-2">
+                      {PRESET_TEMPLATES.map((preset, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => handleApplyPreset(preset.text)}
+                          className="text-[10px] font-bold bg-white hover:bg-amber-50 border border-slate-200 hover:border-amber-300 p-2.5 rounded-xl text-slate-600 hover:text-[#FF9F00] text-left transition shadow-xs"
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 )}
-              </div>
 
-              {/* Quick Preset select widgets */}
-              {selectedTicket.status === 'open' && (
-                <div className="space-y-2">
-                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Quick Resolve Presets</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {PRESET_TEMPLATES.map((preset, idx) => (
+                {/* Response Submission Input / Resolve Box */}
+                {selectedTicket.status === 'open' ? (
+                  <form onSubmit={handleReplyTicket} className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-bold text-slate-400 uppercase">Write helpdesk response</label>
+                      <textarea
+                        required
+                        rows={3}
+                        value={replyText}
+                        onChange={(e) => setReplyText(e.target.value)}
+                        placeholder="Type customized guidelines or click preset buttons above..."
+                        className="w-full rounded-xl bg-white border border-slate-200 p-3 text-xs text-slate-850 font-medium focus:outline-none focus:border-[#FF9F00] resize-none"
+                      />
+                    </div>
+
+                    {replyFeedback && (
+                      <p className={`text-[10px] font-bold text-center py-2 rounded-xl border ${
+                        replyFeedback.includes('dispatched') ? 'text-emerald-600 bg-emerald-50 border-emerald-100' : 'text-red-600 bg-red-50 border-red-100'
+                      }`}>
+                        {replyFeedback}
+                      </p>
+                    )}
+
+                    <div className="grid grid-cols-3 gap-2 pt-1.5">
                       <button
-                        key={idx}
                         type="button"
-                        onClick={() => handleApplyPreset(preset.text)}
-                        className="text-[10px] font-semibold bg-white hover:bg-amber-50 border border-slate-200 hover:border-amber-300 px-2.5 py-1.5 rounded-lg text-slate-600 hover:text-[#FF9F00] transition shadow-sm"
+                        onClick={() => handleCloseTicket(selectedTicket.id)}
+                        className="col-span-1 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold uppercase tracking-wider text-[10px] transition flex items-center justify-center space-x-1 cursor-pointer border border-slate-200"
                       >
-                        {preset.label}
+                        <Check className="h-4 w-4 text-emerald-500 stroke-[3px]" />
+                        <span>Force Settle</span>
                       </button>
-                    ))}
+
+                      <button
+                        type="submit"
+                        disabled={replyLoading}
+                        className="col-span-2 py-3 rounded-xl bg-slate-900 hover:bg-[#FF9F00] text-white hover:text-slate-950 font-black uppercase tracking-wider text-[10.5px] transition flex items-center justify-center space-x-2 cursor-pointer shadow-sm"
+                      >
+                        <Send className="h-3.5 w-3.5" />
+                        <span>{replyLoading ? 'Dispatching...' : 'Dispatch Reply'}</span>
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="bg-emerald-50 border border-emerald-100/60 rounded-2xl p-4 flex items-start space-x-2.5 text-[#1FA66A] text-left leading-relaxed">
+                    <MessageSquare className="h-5 w-5 shrink-0 text-[#1FA66A]" />
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-wider font-mono block">Ticket status: Settle Complete</span>
+                      <p className="text-[10px] text-[#1FA66A] mt-0.5 font-medium">This support session is closed. Responses have been received by the player.</p>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Response entry form */}
-              {selectedTicket.status === 'open' ? (
-                <form onSubmit={handleReplyTicket} className="space-y-3">
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-bold text-slate-400 uppercase">Write administrative response</label>
-                    <textarea
-                      required
-                      rows={3}
-                      value={replyText}
-                      onChange={(e) => setReplyText(e.target.value)}
-                      placeholder="Type details or use a Quick Resolve Preset above..."
-                      className="w-full rounded-xl bg-white border border-slate-200 p-3 text-xs text-slate-800 focus:outline-none focus:border-[#FF9F00] resize-none"
-                    />
-                  </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
-                  {replyFeedback && (
-                    <p className="text-[10px] text-center font-bold text-slate-600 bg-white border border-slate-100 p-1.5 rounded-lg">
-                      {replyFeedback}
-                    </p>
-                  )}
-
-                  <button
-                    type="submit"
-                    disabled={replyLoading}
-                    className="w-full flex items-center justify-center space-x-2 py-3 rounded-xl bg-gradient-to-r from-slate-900 to-slate-800 hover:from-slate-800 hover:to-slate-700 text-white text-xs font-black uppercase tracking-wider transition"
-                  >
-                    <Send className="h-3.5 w-3.5" />
-                    <span>{replyLoading ? 'Dispatching response...' : 'Submit Support Response'}</span>
-                  </button>
-                </form>
-              ) : (
-                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 flex items-start space-x-2 text-[#1FA66A]">
-                  <MessageSquare className="h-4.5 w-4.5 shrink-0 text-[#1FA66A]" />
-                  <span className="text-[10px] font-bold uppercase tracking-wider leading-relaxed">This player ticket has been resolved. No further action is required.</span>
-                </div>
-              )}
-
-            </div>
-          ) : (
-            <div className="border border-dashed border-slate-300 rounded-2xl bg-slate-50/40 flex flex-col items-center justify-center p-8 text-center text-slate-400 text-xs min-h-[300px]">
-              <FileText className="h-10 w-10 text-slate-300 mb-2" />
-              <span>Select a player support ticket from the registry list to load the administrative response terminal.</span>
-            </div>
-          )}
-        </div>
-
-      </div>
     </motion.div>
   );
 }

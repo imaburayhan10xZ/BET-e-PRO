@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   ShieldAlert, TrendingUp, Users, Wallet, Trophy, BadgePercent, 
   FileText, Settings, Activity, Headphones, Image as ImageIcon, ShieldCheck,
-  ChevronLeft, ChevronRight 
+  ChevronRight, X, Sparkles, BellRing, BellOff, RefreshCw, LayoutGrid
 } from 'lucide-react';
 import { User, Transaction, Match, SupportTicket, SystemSettings, Promotion } from '../types';
 import { requestNotificationPermission, playChimeSound } from '../utils/notifications';
@@ -32,41 +32,8 @@ interface AdminPanelProps {
 type AdminTab = 'analytics' | 'users' | 'transactions' | 'matches' | 'promotions' | 'tickets' | 'support_channels' | 'sliders_notices' | 'settings' | 'admin_management';
 
 export default function AdminPanel({ user, onRefreshUser }: AdminPanelProps) {
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
-    try {
-      return localStorage.getItem('admin_sidebar_collapsed') === 'true';
-    } catch {
-      return false;
-    }
-  });
-
-  const toggleSidebar = () => {
-    setIsSidebarCollapsed(prev => {
-      const newVal = !prev;
-      try {
-        localStorage.setItem('admin_sidebar_collapsed', String(newVal));
-      } catch {}
-      return newVal;
-    });
-  };
-
-  const hasAccess = (tabId: AdminTab) => {
-    if (user.role === 'primary_admin') return true;
-    if (tabId === 'admin_management') return false; // restricted to primary admin only
-    const allowed = user.allowedTabs || [];
-    return allowed.includes(tabId);
-  };
-
-  const getInitialTab = (): AdminTab => {
-    if (user.role === 'primary_admin') return 'analytics';
-    const possible: AdminTab[] = ['analytics', 'users', 'transactions', 'matches', 'promotions', 'tickets', 'support_channels', 'sliders_notices', 'settings'];
-    for (const tab of possible) {
-      if (user.allowedTabs && user.allowedTabs.includes(tab)) return tab;
-    }
-    return 'analytics';
-  };
-
-  const [activeTab, setActiveTab] = useState<AdminTab>(getInitialTab());
+  const [activeTab, setActiveTab] = useState<AdminTab>('analytics');
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>(
     typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'default'
   );
@@ -100,6 +67,13 @@ export default function AdminPanel({ user, onRefreshUser }: AdminPanelProps) {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`
     };
+  };
+
+  const hasAccess = (tabId: AdminTab) => {
+    if (user.role === 'primary_admin') return true;
+    if (tabId === 'admin_management') return false; // restricted to primary admin only
+    const allowed = user.allowedTabs || [];
+    return allowed.includes(tabId);
   };
 
   const fetchAnalytics = async () => {
@@ -207,258 +181,421 @@ export default function AdminPanel({ user, onRefreshUser }: AdminPanelProps) {
     }
   };
 
-  // Run on tab mount
+  // Pre-load key statistics for the dashboard on mount
   useEffect(() => {
-    if (activeTab === 'analytics') fetchAnalytics();
-    if (activeTab === 'users') {
+    fetchAnalytics();
+    fetchTransactions();
+    fetchUsers();
+    fetchMatches();
+    fetchTickets();
+    fetchSettings();
+  }, []);
+
+  // Handle opening a specific admin section
+  const handleOpenSection = (tabId: AdminTab) => {
+    setActiveTab(tabId);
+    setIsModalOpen(true);
+
+    // Dynamic refetches to ensure absolutely up-to-date states
+    if (tabId === 'analytics') fetchAnalytics();
+    if (tabId === 'users') fetchUsers();
+    if (tabId === 'transactions') {
+      fetchTransactions();
       fetchUsers();
     }
-    if (activeTab === 'transactions') {
-      fetchTransactions();
-      fetchUsers(); // Required for dropdown in manual transactions
-    }
-    if (activeTab === 'matches') fetchMatches();
-    if (activeTab === 'promotions') fetchPromotions();
-    if (activeTab === 'tickets') fetchTickets();
-    if (activeTab === 'settings') fetchSettings();
-  }, [activeTab]);
+    if (tabId === 'matches') fetchMatches();
+    if (tabId === 'promotions') fetchPromotions();
+    if (tabId === 'tickets') fetchTickets();
+    if (tabId === 'settings') fetchSettings();
+  };
 
-  // Auto-switch tab if current activeTab is revoked or not accessible in real-time
-  useEffect(() => {
-    if (!hasAccess(activeTab)) {
-      const possible: AdminTab[] = ['analytics', 'users', 'transactions', 'matches', 'promotions', 'tickets', 'support_channels', 'sliders_notices', 'settings'];
-      for (const tab of possible) {
-        if (hasAccess(tab)) {
-          setActiveTab(tab);
-          return;
-        }
-      }
+  // Derived metrics for display badges on the main page boxes
+  const pendingDepositsCount = transactions.filter(t => t.type === 'deposit' && t.status === 'pending').length;
+  const pendingWithdrawalsCount = transactions.filter(t => t.type === 'withdraw' && t.status === 'pending').length;
+  const activeMatchesCount = matches.filter(m => !m.isCompleted).length;
+  const activeTicketsCount = tickets.filter(t => t.status === 'open' || t.status === 'pending').length;
+  const totalPlayersCount = users.length;
+
+  // Box definitions matching the exact list in the requested design
+  const launcherBoxes = [
+    {
+      id: 'analytics' as const,
+      label: 'Platform Metrics',
+      labelBn: 'প্ল্যাটফর্ম পরিসংখ্যান',
+      desc: 'Profit-loss analytics, daily deposit/withdraw volumes & volume graphs.',
+      icon: Activity,
+      color: 'bg-amber-50 text-amber-600 border-amber-100 hover:border-amber-300 hover:bg-amber-100/50',
+      badge: analytics ? `৳${analytics.netProfit?.toLocaleString() || '0'} Profit` : 'Live Stats'
+    },
+    {
+      id: 'users' as const,
+      label: 'Player Database',
+      labelBn: 'প্লেয়ার ডাটাবেজ',
+      desc: 'View users, modify wallet balances, update VIP levels & suspend accounts.',
+      icon: Users,
+      color: 'bg-sky-50 text-sky-600 border-sky-100 hover:border-sky-300 hover:bg-sky-100/50',
+      badge: totalPlayersCount > 0 ? `${totalPlayersCount} Players Registered` : '0 Registered'
+    },
+    {
+      id: 'transactions' as const,
+      label: 'Gateway Ledgers',
+      labelBn: 'লেনদেন গেটওয়ে',
+      desc: 'Approve or reject bKash/Nagad/Rocket deposits and withdrawals.',
+      icon: Wallet,
+      color: 'bg-emerald-50 text-emerald-600 border-emerald-100 hover:border-emerald-300 hover:bg-emerald-100/50',
+      badge: (pendingDepositsCount > 0 || pendingWithdrawalsCount > 0) 
+        ? `🚨 Dep: ${pendingDepositsCount} | With: ${pendingWithdrawalsCount} Pending`
+        : '🟢 Ledgers Clean'
+    },
+    {
+      id: 'matches' as const,
+      label: 'Match Settle Panel',
+      labelBn: 'ম্যাচ রেজাল্ট সেটেল',
+      desc: 'Settle live cricket/football match bets or create new matches.',
+      icon: Trophy,
+      color: 'bg-[#FF9F00]/5 text-[#FF9F00] border-[#FF9F00]/20 hover:border-[#FF9F00]/40 hover:bg-[#FF9F00]/10',
+      badge: activeMatchesCount > 0 ? `${activeMatchesCount} Matches Active` : '0 Active Matches'
+    },
+    {
+      id: 'promotions' as const,
+      label: 'Campaign Creator',
+      labelBn: 'প্রমোশন ক্যাম্পেইন',
+      desc: 'Manage promotional banners, offers, and registration incentives.',
+      icon: BadgePercent,
+      color: 'bg-indigo-50 text-indigo-600 border-indigo-100 hover:border-indigo-300 hover:bg-indigo-100/50',
+      badge: 'Active campaigns'
+    },
+    {
+      id: 'tickets' as const,
+      label: 'Support Tickets',
+      labelBn: 'হেল্প টিকেট মেসেজ',
+      desc: 'Review support messages, live chat with players & resolve issues.',
+      icon: FileText,
+      color: 'bg-rose-50 text-rose-600 border-rose-100 hover:border-rose-300 hover:bg-rose-100/50',
+      badge: activeTicketsCount > 0 ? `🔥 ${activeTicketsCount} Open Tickets` : 'No open issues'
+    },
+    {
+      id: 'support_channels' as const,
+      label: 'Support Channels',
+      labelBn: 'কাস্টমার সাপোর্ট লিংক',
+      desc: 'Update Telegram link, WhatsApp support, or live agent settings.',
+      icon: Headphones,
+      color: 'bg-teal-50 text-teal-600 border-teal-100 hover:border-teal-300 hover:bg-teal-100/50',
+      badge: 'Support Gateways'
+    },
+    {
+      id: 'sliders_notices' as const,
+      label: 'Sliders & Notices',
+      labelBn: 'ব্যানার ও নোটিশ',
+      desc: 'Add home carousel banners or change scrolling marque notices.',
+      icon: ImageIcon,
+      color: 'bg-fuchsia-50 text-fuchsia-600 border-fuchsia-100 hover:border-fuchsia-300 hover:bg-fuchsia-100/50',
+      badge: 'Banners & Marquee'
+    },
+    {
+      id: 'settings' as const,
+      label: 'Platform Config',
+      labelBn: 'সাইট মেইন কনফিগ',
+      desc: 'Change site name, upload logo/favicon, update transaction limits.',
+      icon: Settings,
+      color: 'bg-purple-50 text-purple-600 border-purple-100 hover:border-purple-300 hover:bg-purple-100/50',
+      badge: sysSettings ? `${sysSettings.siteName || 'BetePro BDT'}` : 'Site Parameters'
+    },
+    {
+      id: 'admin_management' as const,
+      label: 'Admin Management',
+      labelBn: 'সাব-অ্যাডমিন রোলস',
+      desc: 'Configure sub-admins, permissions, and security parameters.',
+      icon: ShieldCheck,
+      color: 'bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-400 hover:bg-slate-150/50',
+      badge: user.role === 'primary_admin' ? 'Primary Root Access' : 'Restricted Tab'
     }
-  }, [user?.allowedTabs, user?.role, activeTab]);
+  ];
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 px-4 pb-20 items-start w-full">
+    <div className="w-full max-w-5xl mx-auto space-y-8 text-xs text-slate-700">
       
-      {/* ADMIN SIDEBAR NAVIGATION */}
-      <div 
-        className={`w-full shrink-0 transition-all duration-300 bg-white/85 backdrop-blur-md p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col ${
-          isSidebarCollapsed ? 'lg:w-[76px]' : 'lg:w-72'
-        }`}
-      >
-        <div className="border-b border-slate-100 pb-2.5 mb-3 flex items-center justify-between">
-          <div className="flex items-center space-x-2 overflow-hidden">
-            <ShieldAlert className="h-4.5 w-4.5 text-[#FF9F00] shrink-0" />
-            {!isSidebarCollapsed && (
-              <span className="text-[10px] font-black uppercase tracking-widest text-[#FF9F00] font-mono whitespace-nowrap">
-                Admin Control
-              </span>
-            )}
+      {/* -------------------- ADMIN HEADER BAR -------------------- */}
+      <div className="bg-slate-900 text-white rounded-3xl p-6 shadow-xl border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6">
+        <div className="flex items-center space-x-4 text-center md:text-left">
+          <div className="p-3 bg-[#FF9F00] text-slate-950 rounded-2xl shadow-lg shrink-0">
+            <ShieldAlert className="h-6 w-6" />
           </div>
-          
-          {/* Collapse Toggle Button - Visible on Desktop */}
-          <button
-            onClick={toggleSidebar}
-            className="hidden lg:flex items-center justify-center h-6 w-6 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-500 hover:text-slate-800 transition shadow-sm bg-white shrink-0"
-            title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-          >
-            {isSidebarCollapsed ? (
-              <ChevronRight className="h-3.5 w-3.5" />
-            ) : (
-              <ChevronLeft className="h-3.5 w-3.5" />
-            )}
-          </button>
+          <div>
+            <div className="flex items-center justify-center md:justify-start space-x-2">
+              <h2 className="text-base font-black tracking-wider uppercase text-[#FF9F00] font-mono">Admin Control Panel</h2>
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" title="System Live connected" />
+            </div>
+            <p className="text-[11px] text-slate-300 mt-1 max-w-lg leading-normal">
+              Secure console gateway to manage ledger ledgers, payout risks, player databases, support queries and platform branding.
+            </p>
+          </div>
         </div>
 
-        <div className="space-y-1.5">
-          {([
-            { id: 'analytics', label: 'Platform Metrics', icon: Activity },
-            { id: 'users', label: 'Player Database', icon: Users },
-            { id: 'transactions', label: 'Gateway Ledgers', icon: Wallet },
-            { id: 'matches', label: 'Match Settle Panel', icon: Trophy },
-            { id: 'promotions', label: 'Campaign Creator', icon: BadgePercent },
-            { id: 'tickets', label: 'Support Tickets', icon: FileText },
-            { id: 'support_channels', label: 'Support Channels', icon: Headphones },
-            { id: 'sliders_notices', label: 'Sliders & Notices', icon: ImageIcon },
-            { id: 'settings', label: 'Platform Config', icon: Settings },
-            { id: 'admin_management', label: 'Admin Management', icon: ShieldCheck }
-          ] as const).filter(t => hasAccess(t.id)).map(tab => {
-            const Icon = tab.icon;
+        <div className="flex items-center space-x-3.5">
+          {/* Quick Refresh Status info */}
+          <button
+            onClick={() => {
+              fetchAnalytics();
+              fetchTransactions();
+              fetchUsers();
+              fetchMatches();
+              fetchTickets();
+              fetchSettings();
+              alert('সকল তথ্য রিয়েল-টাইম ডাটাবেজ থেকে সিঙ্ক করা হয়েছে!');
+            }}
+            className="px-4.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 transition flex items-center space-x-2 text-slate-200 hover:text-white font-extrabold text-[10px] uppercase tracking-wider cursor-pointer active:scale-95"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            <span>Sync Live DB</span>
+          </button>
+        </div>
+      </div>
+
+      {/* -------------------- NOTIFICATION PERMISSION BANNER -------------------- */}
+      {notifPermission !== 'granted' && (
+        <div className="p-4.5 rounded-2xl bg-amber-50 border border-amber-200/80 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center space-x-3.5 text-center sm:text-left">
+            <span className="flex h-3.5 w-3.5 relative shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-rose-500"></span>
+            </span>
+            <div>
+              <h4 className="text-xs font-black text-amber-950 uppercase tracking-wider flex items-center justify-center sm:justify-start space-x-1.5">
+                <span>Enable Admin Push Alerts</span>
+                <span className="text-[10px] text-amber-800 font-bold">(অ্যাডমিন রিয়েল-টাইম নোটিফিকেশন)</span>
+              </h4>
+              <p className="text-[10.5px] text-amber-900/80 font-medium leading-relaxed mt-0.5">
+                বিকাশ/নগদ ডিপোজিট বা উইথড্র রিকোয়েস্ট আসার সাথে সাথে পিসি/মোবাইলে সাথে সাথে নোটিফিকেশন পেতে এটি চালু করুন।
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={async () => {
+              const permission = await requestNotificationPermission();
+              setNotifPermission(permission);
+              if (permission === 'granted') {
+                playChimeSound('success');
+                alert('সফল হয়েছে! নোটিফিকেশন চালু করা হয়েছে। (Success! Live Alerts activated.)');
+              } else if (permission === 'denied') {
+                alert('নোটিফিকেশন অনুমতি ব্লক করা আছে। ব্রাউজার সেটিংসে গিয়ে অনুমতি দিন। (Please allow in browser settings.)');
+              }
+            }}
+            className="shrink-0 px-4.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-black transition-all shadow-sm flex items-center space-x-1.5 cursor-pointer"
+          >
+            <BellRing className="h-3.5 w-3.5" />
+            <span>Live Alerts চালু করুন</span>
+          </button>
+        </div>
+      )}
+
+      {/* -------------------- MAIN GRID OF BOX LAUNCHERS -------------------- */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2 text-slate-800">
+            <LayoutGrid className="h-4.5 w-4.5 text-slate-500" />
+            <h3 className="text-xs font-black uppercase tracking-wider">Control Console Sections</h3>
+          </div>
+          <span className="text-[10px] font-bold text-slate-400">Select any module to open management popup</span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {launcherBoxes.filter(box => hasAccess(box.id)).map((box) => {
+            const BoxIcon = box.icon;
             return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                title={isSidebarCollapsed ? tab.label : undefined}
-                className={`w-full flex items-center rounded-xl py-3 text-xs font-black transition relative group ${
-                  isSidebarCollapsed ? 'justify-center px-1' : 'justify-start px-4 space-x-2.5'
-                } ${
-                  activeTab === tab.id 
-                    ? 'bg-[#FF9F00] text-slate-950 shadow-md shadow-[#FF9F00]/10' 
-                    : 'text-slate-600 hover:text-slate-950 hover:bg-slate-50'
-                }`}
+              <motion.div
+                key={box.id}
+                whileHover={{ scale: 1.015, y: -2 }}
+                whileTap={{ scale: 0.985 }}
+                onClick={() => handleOpenSection(box.id)}
+                className={`p-5 bg-white border border-slate-200/80 rounded-2xl cursor-pointer transition-all hover:shadow-lg flex flex-col justify-between space-y-4 relative overflow-hidden group`}
               >
-                <Icon className="h-4 w-4 shrink-0" />
-                {!isSidebarCollapsed && (
-                  <span className="truncate whitespace-nowrap">{tab.label}</span>
-                )}
-                
-                {/* Hover tooltip for collapsed state */}
-                {isSidebarCollapsed && (
-                  <div className="absolute left-full ml-3 px-2.5 py-1.5 bg-slate-950 text-white text-[10px] font-black rounded-lg shadow-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50">
-                    {tab.label}
+                {/* Background decorative shine effect */}
+                <div className="absolute right-0 top-0 h-24 w-24 bg-slate-50/20 rounded-bl-full pointer-events-none group-hover:bg-slate-100/10 transition-colors" />
+
+                <div className="flex items-start justify-between relative z-10">
+                  <div className={`p-3.5 rounded-2xl border transition-colors ${box.color.split(' ')[0]} ${box.color.split(' ')[1]} ${box.color.split(' ')[2]} ${box.color.split(' ')[3]} shrink-0`}>
+                    <BoxIcon className="h-5.5 w-5.5" />
                   </div>
-                )}
-              </button>
+                  
+                  <span className="text-[9.5px] font-black px-3 py-1 rounded-full bg-slate-50 text-slate-500 border border-slate-200/60 font-mono">
+                    {box.badge}
+                  </span>
+                </div>
+                
+                <div className="space-y-1 relative z-10">
+                  <h4 className="text-[12.5px] font-black text-slate-800 uppercase tracking-wide flex items-center space-x-1.5">
+                    <span>{box.label}</span>
+                    <span className="text-[10px] text-slate-400 font-bold">({box.labelBn})</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-400 font-medium leading-relaxed">{box.desc}</p>
+                </div>
+
+                <div className="pt-3 border-t border-dashed border-slate-100 flex items-center justify-between text-[10px] font-black text-indigo-600 uppercase tracking-wider relative z-10">
+                  <span>Manage Parameter & Control</span>
+                  <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-indigo-600 transition-colors" />
+                </div>
+              </motion.div>
             );
           })}
         </div>
       </div>
 
-      {/* RENDER ACTIVE TAB COMPONENT */}
-      <div className="flex-1 w-full bg-white/85 backdrop-blur-md p-6 rounded-2xl border border-slate-200/80 shadow-sm min-h-[450px] overflow-hidden">
-        {/* Real-time Push Alert activation banner for administrators */}
-        {notifPermission !== 'granted' && (
-          <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center space-x-3 text-center sm:text-left">
-              <span className="flex h-3 w-3 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
-              </span>
-              <div>
-                <h4 className="text-xs font-black text-amber-950 uppercase tracking-wider">
-                  Live Admin Push Alerts (অ্যাডমিন রিয়েল-টাইম নোটিফিকেশন)
-                </h4>
-                <p className="text-[11px] text-amber-900/80 font-medium">
-                  বিকাশ/নগদ ডিপোজিট বা উইথড্র রিকোয়েস্ট আসার সাথে সাথে মোবাইলে/পিসিতে রিংটোন এবং পুশ নোটিফিকেশন পেতে চালু করুন।
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={async () => {
-                const permission = await requestNotificationPermission();
-                setNotifPermission(permission);
-                if (permission === 'granted') {
-                  playChimeSound('success');
-                  alert('সফল হয়েছে! নোটিফিকেশন চালু করা হয়েছে। (Success! Live Admin Alerts activated.)');
-                } else if (permission === 'denied') {
-                  alert('নোটিফিকেশন ব্লক করা আছে। ব্রাউজার সেটিংসে গিয়ে অনুমতি দিন। (Notifications are blocked. Please allow in settings.)');
-                } else {
-                  alert('নোটিফিকেশন অনুমতি পেন্ডিং আছে। (Permission is pending.)');
-                }
-              }}
-              className="shrink-0 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-black transition-all shadow-sm flex items-center space-x-1.5"
+      {/* -------------------- UNIFIED IMMERSIVE POPUP MODAL CONTAINER -------------------- */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+            
+            {/* Backdrop Blur */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsModalOpen(false)}
+              className="absolute inset-0 bg-slate-950/80 backdrop-blur-md"
+            />
+
+            {/* Immersive Window Frame */}
+            <motion.div
+              initial={{ scale: 0.94, opacity: 0, y: 30 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.94, opacity: 0, y: 30 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+              className="relative bg-white w-full max-w-4xl rounded-3xl shadow-2xl border border-slate-100/80 overflow-hidden flex flex-col max-h-[92vh] z-10"
             >
-              <span>🔔 Live Alerts চালু করুন</span>
-            </button>
+              
+              {/* Modal Dynamic Header */}
+              {(() => {
+                const currentBox = launcherBoxes.find(b => b.id === activeTab);
+                if (!currentBox) return null;
+                const HeaderIcon = currentBox.icon;
+                return (
+                  <div className="bg-slate-950 text-white p-5 flex items-center justify-between border-b border-slate-800">
+                    <div className="flex items-center space-x-3.5">
+                      <div className="p-3 bg-slate-900 rounded-2xl border border-slate-850 text-amber-400">
+                        <HeaderIcon className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <h3 className="text-sm font-black uppercase tracking-wider text-amber-300">
+                            {currentBox.label}
+                          </h3>
+                          <span className="text-[10px] text-slate-400 font-bold bg-slate-900 px-2.5 py-0.5 rounded-lg border border-slate-800">
+                            {currentBox.labelBn}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-0.5 font-medium leading-normal">{currentBox.desc}</p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsModalOpen(false)}
+                      className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition duration-200 cursor-pointer border border-white/10"
+                      title="Close Section"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+                );
+              })()}
+
+              {/* Modal Scrollable Interactive Area */}
+              <div className="p-6 overflow-y-auto max-h-[72vh] bg-slate-50/40 relative">
+                
+                {activeTab === 'analytics' && (
+                  <AnalyticsPanel
+                    analytics={analytics}
+                    loading={analyticsLoading}
+                    onRefresh={fetchAnalytics}
+                  />
+                )}
+
+                {activeTab === 'users' && (
+                  <UsersPanel
+                    users={users}
+                    loading={usersLoading}
+                    onRefresh={fetchUsers}
+                    onRefreshUser={onRefreshUser}
+                  />
+                )}
+
+                {activeTab === 'transactions' && (
+                  <TransactionsPanel
+                    transactions={transactions}
+                    users={users}
+                    loading={txsLoading}
+                    onRefresh={fetchTransactions}
+                    onRefreshUser={onRefreshUser}
+                  />
+                )}
+
+                {activeTab === 'matches' && (
+                  <MatchesPanel
+                    matches={matches}
+                    loading={matchesLoading}
+                    onRefresh={fetchMatches}
+                    onRefreshUser={onRefreshUser}
+                  />
+                )}
+
+                {activeTab === 'promotions' && (
+                  <PromotionsPanel
+                    promotions={promotions}
+                    loading={promotionsLoading}
+                    onRefresh={fetchPromotions}
+                  />
+                )}
+
+                {activeTab === 'tickets' && (
+                  <TicketsPanel
+                    tickets={tickets}
+                    loading={ticketsLoading}
+                    onRefresh={fetchTickets}
+                  />
+                )}
+
+                {activeTab === 'support_channels' && (
+                  <SupportChannelsPanel />
+                )}
+
+                {activeTab === 'sliders_notices' && (
+                  <SlidersNoticesPanel />
+                )}
+
+                {activeTab === 'settings' && (
+                  <SettingsPanel
+                    settings={sysSettings}
+                    loading={settingsLoading}
+                    onRefresh={fetchSettings}
+                  />
+                )}
+
+                {activeTab === 'admin_management' && (
+                  <AdminManagementPanel />
+                )}
+
+              </div>
+
+              {/* Modal Uniform Footer */}
+              <div className="bg-slate-50 border-t border-slate-100 p-4.5 flex items-center justify-between text-[10px] text-slate-400 font-medium">
+                <div className="flex items-center space-x-2">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 inline-block" />
+                  <span>Real-time Secure Connection Active</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-black uppercase tracking-wider text-[9px] rounded-xl transition cursor-pointer"
+                >
+                  Close Panel (বন্ধ করুন)
+                </button>
+              </div>
+
+            </motion.div>
           </div>
         )}
-
-        {!hasAccess(activeTab) ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <ShieldAlert className="h-16 w-16 text-rose-500 mb-4 animate-bounce" />
-            <h3 className="text-lg font-bold text-slate-800">অ্যাক্সেস অস্বীকৃত / Access Denied</h3>
-            <p className="text-slate-500 mt-2 text-sm max-w-sm">
-              আপনার এই বিভাগে প্রবেশের অনুমতি নেই। অনুগ্রহ করে প্রাথমিক অ্যাডমিনের সাথে যোগাযোগ করুন।
-            </p>
-            <p className="text-slate-400 mt-1 text-xs">
-              (You do not have permission to access this section. Please contact the primary administrator.)
-            </p>
-          </div>
-        ) : (
-          <AnimatePresence mode="wait">
-            {activeTab === 'analytics' && (
-            <motion.div key="analytics" className="w-full">
-              <AnalyticsPanel
-                analytics={analytics}
-                loading={analyticsLoading}
-                onRefresh={fetchAnalytics}
-              />
-            </motion.div>
-          )}
-
-          {activeTab === 'users' && (
-            <motion.div key="users" className="w-full">
-              <UsersPanel
-                users={users}
-                loading={usersLoading}
-                onRefresh={fetchUsers}
-                onRefreshUser={onRefreshUser}
-              />
-            </motion.div>
-          )}
-
-          {activeTab === 'transactions' && (
-            <motion.div key="transactions" className="w-full">
-              <TransactionsPanel
-                transactions={transactions}
-                users={users}
-                loading={txsLoading}
-                onRefresh={fetchTransactions}
-                onRefreshUser={onRefreshUser}
-              />
-            </motion.div>
-          )}
-
-          {activeTab === 'matches' && (
-            <motion.div key="matches" className="w-full">
-              <MatchesPanel
-                matches={matches}
-                loading={matchesLoading}
-                onRefresh={fetchMatches}
-                onRefreshUser={onRefreshUser}
-              />
-            </motion.div>
-          )}
-
-          {activeTab === 'promotions' && (
-            <motion.div key="promotions" className="w-full">
-              <PromotionsPanel
-                promotions={promotions}
-                loading={promotionsLoading}
-                onRefresh={fetchPromotions}
-              />
-            </motion.div>
-          )}
-
-          {activeTab === 'tickets' && (
-            <motion.div key="tickets" className="w-full">
-              <TicketsPanel
-                tickets={tickets}
-                loading={ticketsLoading}
-                onRefresh={fetchTickets}
-              />
-            </motion.div>
-          )}
-
-          {activeTab === 'support_channels' && (
-            <motion.div key="support_channels" className="w-full">
-              <SupportChannelsPanel />
-            </motion.div>
-          )}
-
-          {activeTab === 'sliders_notices' && (
-            <motion.div key="sliders_notices" className="w-full">
-              <SlidersNoticesPanel />
-            </motion.div>
-          )}
-
-          {activeTab === 'settings' && (
-            <motion.div key="settings" className="w-full">
-              <SettingsPanel
-                settings={sysSettings}
-                loading={settingsLoading}
-                onRefresh={fetchSettings}
-              />
-            </motion.div>
-          )}
-
-          {activeTab === 'admin_management' && (
-            <motion.div key="admin_management" className="w-full">
-              <AdminManagementPanel />
-            </motion.div>
-          )}
-        </AnimatePresence>
-        )}
-      </div>
+      </AnimatePresence>
 
     </div>
   );

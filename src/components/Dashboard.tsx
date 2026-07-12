@@ -72,13 +72,23 @@ export default function Dashboard({ user, lang, onRefreshUser, onNavigate, initi
 
   useEffect(() => {
     if (withdrawChannel === 'bKash') {
-      setWithdrawRecipient(user.bkashNumber || '');
+      setWithdrawRecipient(prev => {
+        // If the user has typed something and the account isn't bound in DB yet, preserve user typing
+        if (prev && prev !== user.bkashNumber && !user.bkashNumber) return prev;
+        return user.bkashNumber || '';
+      });
     } else if (withdrawChannel === 'Nagad') {
-      setWithdrawRecipient(user.nagadNumber || '');
+      setWithdrawRecipient(prev => {
+        if (prev && prev !== user.nagadNumber && !user.nagadNumber) return prev;
+        return user.nagadNumber || '';
+      });
     } else if (withdrawChannel === 'Rocket') {
-      setWithdrawRecipient(user.rocketNumber || '');
+      setWithdrawRecipient(prev => {
+        if (prev && prev !== user.rocketNumber && !user.rocketNumber) return prev;
+        return user.rocketNumber || '';
+      });
     }
-  }, [withdrawChannel, user]);
+  }, [withdrawChannel, user.bkashNumber, user.nagadNumber, user.rocketNumber]);
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [txLoading, setTxLoading] = useState(false);
@@ -126,13 +136,13 @@ export default function Dashboard({ user, lang, onRefreshUser, onNavigate, initi
   
   useEffect(() => {
     if (user) {
-      setSavedAccounts({
-        bkash: user.bkashNumber || '',
-        nagad: user.nagadNumber || '',
-        rocket: user.rocketNumber || ''
-      });
+      setSavedAccounts(prev => ({
+        bkash: user.bkashNumber || prev.bkash || '',
+        nagad: user.nagadNumber || prev.nagad || '',
+        rocket: user.rocketNumber || prev.rocket || ''
+      }));
     }
-  }, [user]);
+  }, [user.bkashNumber, user.nagadNumber, user.rocketNumber]);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
 
